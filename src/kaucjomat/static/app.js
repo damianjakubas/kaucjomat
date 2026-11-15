@@ -5,7 +5,14 @@
 
 const VALID_VIEW_IDS = ["butelkomat", "kasa", "analityka"];
 const DEFAULT_VIEW_ID = "butelkomat";
-const errorMessagesBySource = { health: "", view: "" };
+const errorMessagesBySource = {
+  health: "",
+  view: "",
+  returns: "",
+  returnsCards: "",
+  returnsSession: "",
+  returnsAction: "",
+};
 
 /**
  * Normalizuje identyfikator widoku (np. z hasha URL) do jednej z 3 obsługiwanych zakładek.
@@ -35,9 +42,9 @@ async function readJsonSafely(response) {
 }
 
 /**
- * Wyświetla lub ukrywa baner błędu komunikacji z API z rozdzieleniem źródeł (health/view).
+ * Wyświetla lub ukrywa baner błędu komunikacji z API z rozdzieleniem źródeł (health/view/returns*).
  * @param {string} message - Treść błędu po polsku; pusty napis czyści dane źródło.
- * @param {"health"|"view"} [source="view"] - Nazwa źródła zgłaszającego komunikat.
+ * @param {"health"|"view"|"returns"|"returnsCards"|"returnsSession"|"returnsAction"} [source="view"] - Nazwa źródła zgłaszającego komunikat.
  * @returns {void}
  */
 function renderErrorBanner(message, source = "view") {
@@ -47,10 +54,10 @@ function renderErrorBanner(message, source = "view") {
     return;
   }
 
-  const key = source === "health" ? "health" : "view";
+  const key = Object.hasOwn(errorMessagesBySource, source) ? source : "view";
   errorMessagesBySource[key] = message ? String(message) : "";
 
-  const activeMessages = [errorMessagesBySource.health, errorMessagesBySource.view].filter(Boolean);
+  const activeMessages = Object.values(errorMessagesBySource).filter(Boolean);
   if (activeMessages.length === 0) {
     banner.hidden = true;
     messageNode.textContent = "";
@@ -60,6 +67,8 @@ function renderErrorBanner(message, source = "view") {
   messageNode.textContent = activeMessages.join(" | ");
   banner.hidden = false;
 }
+
+window.kaucjomatSetError = renderErrorBanner;
 
 /**
  * Pobiera z backendu FastAPI metadane wybranego widoku i aktualizuje opis sekcji w DOM.

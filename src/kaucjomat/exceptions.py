@@ -38,3 +38,24 @@ class ViewNotFoundError(KaucjomatError):
 
     error_code: str = "VIEW_NOT_FOUND"
     status_code: int = 404
+
+
+class PackageCardNotFoundError(KaucjomatError):
+    """Wyjątek zgłaszany przy żądaniu nieistniejącej karty testowej opakowania."""
+
+    error_code: str = "PACKAGE_CARD_NOT_FOUND"
+    status_code: int = 404
+
+
+class InvalidDepositRequestError(KaucjomatError):
+    """Wyjątek zgłaszany dla niekompletnego lub sprzecznego żądania wrzutu opakowania."""
+
+    error_code: str = "INVALID_DEPOSIT_REQUEST"
+    status_code: int = 400
+
+
+class ReturnStateStorageError(KaucjomatError):
+    """Wyjątek sygnalizujący błąd odczytu lub zapisu lokalnego pliku stanu zwrotów."""
+
+    error_code: str = "RETURN_STATE_STORAGE_ERROR"
+    status_code: int = 500

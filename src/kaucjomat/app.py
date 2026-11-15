@@ -19,10 +19,13 @@ from kaucjomat.config import (
     VIEWS,
     VIEWS_BY_ID,
     ViewDefinition,
+    get_default_return_state_file,
     get_static_dir,
 )
 from kaucjomat.exceptions import InvalidConfigurationError, KaucjomatError, ViewNotFoundError
 from kaucjomat.logging_config import configure_logging, get_logger, sanitize_for_log
+from kaucjomat.return_router import create_return_router
+from kaucjomat.return_store import ReturnStateStore
 from kaucjomat.schemas import ErrorResponse, HealthResponse, ViewSchema, ViewsListResponse
 
 _ALLOWED_VIEW_ID_CHARS: frozenset[str] = frozenset(string.ascii_lowercase + string.digits + "-")
@@ -72,7 +75,17 @@ def _format_validation_errors(exc: RequestValidationError) -> str | None:
     return "; ".join(parts) if parts else None
 
 
-def create_app() -> FastAPI:
+def _resolve_state_file(state_file: Path | None) -> Path:
+    """Wyznacza ścieżkę pliku JSON ze stanem zwrotów z argumentu lub środowiska."""
+    if state_file is not None:
+        return Path(state_file)
+    env_state_file = os.getenv("KAUCJOMAT_STATE_FILE")
+    if env_state_file and env_state_file.strip():
+        return Path(env_state_file.strip())
+    return get_default_return_state_file()
+
+
+def create_app(state_file: Path | None = None) -> FastAPI:
     """Tworzy i konfiguruje instancję aplikacji FastAPI bez efektów ubocznych przy imporcie."""
     # Uruchomienie przez uvicorn --factory (także proces potomny --reload) odtwarza konfigurację ze środowiska.
     if not get_logger().handlers:
@@ -89,6 +102,8 @@ def create_app() -> FastAPI:
         version=APP_VERSION,
         description="Edukacyjny symulator polskiego systemu kaucyjnego w trybie DEMO.",
     )
+    resolved_state_file = _resolve_state_file(state_file)
+    return_store = ReturnStateStore(resolved_state_file)
 
     @app.exception_handler(KaucjomatError)
     async def handle_kaucjomat_error(request: Request, exc: KaucjomatError) -> JSONResponse:
@@ -165,5 +180,7 @@ def create_app() -> FastAPI:
     def read_view(view_id: str) -> ViewSchema:
         """Zwraca metadane wybranego widoku lub zgłasza błąd 400/404 w formacie ErrorResponse."""
         return get_view_or_raise(view_id)
+
+    app.include_router(create_return_router(return_store))
 
     return app

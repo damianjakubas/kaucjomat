@@ -1,0 +1,169 @@
+/* Arkusz stylów interaktywnego widoku Butelkomatu DEMO (bez zewnętrznych zasobów) */
+.session-summary-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  border-radius: 10px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-soft);
+}
+.summary-metrics { display: flex; flex-wrap: wrap; gap: 14px; }
+.summary-metric { display: flex; flex-direction: column; min-width: 94px; }
+.metric-label { font-size: 0.75rem; color: var(--text-muted); }
+.metric-value { font-size: 1.05rem; color: var(--text-main); }
+
+.btn-reset-demo {
+  appearance: none;
+  border: 1px solid var(--demo-border);
+  background: var(--demo-bg);
+  color: var(--demo-text);
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+.btn-reset-demo:hover { filter: brightness(0.96); }
+
+/* Dwukolumnowy układ stanowiska: lewo = wlot i historia, prawo = półka kart */
+.return-station-grid {
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+.return-column-left { display: flex; flex-direction: column; gap: 14px; }
+
+.deposit-dropzone {
+  padding: 18px;
+  border: 2px dashed var(--accent-primary);
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, var(--bg-subtle) 0%, var(--bg-page) 100%);
+  text-align: center;
+  transition: border-color 120ms ease, background-color 120ms ease, transform 120ms ease;
+}
+.deposit-dropzone.is-dragover {
+  border-color: var(--accent-strong);
+  background: var(--demo-bg);
+  transform: scale(1.01);
+}
+.dropzone-badge {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--accent-primary);
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.dropzone-title { margin: 10px 0 14px; font-weight: 600; font-size: 0.94rem; color: var(--text-main); }
+
+.scanner-result-box {
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-soft);
+}
+.scanner-result-box.is-accepted { background: #ecfdf5; border-color: #10b981; color: #065f46; }
+.scanner-result-box.is-redirected { background: var(--demo-bg); border-color: var(--demo-border); color: var(--demo-text); }
+.scanner-result-box.is-rejected { background: var(--error-bg); border-color: var(--error-border); color: var(--error-text); }
+.scanner-status-title { display: block; font-size: 0.96rem; margin-bottom: 4px; }
+.scanner-message { margin: 0 0 8px; font-size: 0.88rem; }
+.scanner-meta {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-family: Consolas, "Courier New", monospace;
+  word-break: break-word;
+}
+
+.session-history-box,
+.return-column-right {
+  padding: 14px;
+  border-radius: 10px;
+  background: var(--bg-page);
+  border: 1px solid var(--border-soft);
+}
+.session-history-box h3,
+.return-column-right h3 { margin: 0 0 10px; font-size: 0.98rem; }
+
+.session-attempts-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 250px;
+  overflow-y: auto;
+}
+.attempt-item,
+.attempt-empty {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-soft);
+  font-size: 0.82rem;
+}
+.attempt-item.is-accepted { border-left: 4px solid #10b981; }
+.attempt-item.is-redirected { border-left: 4px solid var(--demo-border); }
+.attempt-item.is-rejected { border-left: 4px solid var(--error-border); }
+.voucher-next-step,
+.panel-scope-note { margin: 10px 0 0; font-size: 0.8rem; color: var(--text-muted); }
+
+/* Półka 8 kart testowych z obsługą przeciągania (Drag & Drop) */
+.package-cards-shelf {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(205px, 1fr));
+  gap: 10px;
+}
+.package-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-soft);
+  cursor: grab;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.package-card:hover { border-color: var(--accent-primary); box-shadow: 0 4px 12px rgba(19, 34, 26, 0.08); }
+.package-card-head { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.package-card-badge {
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: var(--bg-subtle);
+  color: var(--accent-strong);
+}
+.package-card-group-glass .package-card-badge { background: var(--demo-bg); color: var(--demo-text); }
+.package-card-group-invalid .package-card-badge { background: var(--error-bg); color: var(--error-text); }
+.package-card-title { margin: 0; font-size: 0.9rem; font-weight: 700; }
+.package-card-subtitle,
+.package-card-code { margin: 0; font-size: 0.76rem; color: var(--text-muted); }
+.package-card-code { font-family: Consolas, "Courier New", monospace; }
+
+.btn-deposit-card {
+  appearance: none;
+  border: 1px solid var(--accent-strong);
+  background: var(--accent-primary);
+  color: #ffffff;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-deposit-card:hover { background: var(--accent-strong); }
+
+@media (max-width: 820px) {
+  .return-station-grid { grid-template-columns: 1fr; }
+}

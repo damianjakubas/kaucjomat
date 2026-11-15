@@ -29,3 +29,24 @@ class BasketTooSmallError(KaucjomatError):
 
     error_code: str = "BASKET_TOO_SMALL"
     status_code: int = 409
+
+
+class VoucherNotFoundError(KaucjomatError):
+    """Sygnalizuje brak bonu o podanym kodzie w bieżącym pokazie DEMO."""
+
+    error_code: str = "VOUCHER_NOT_FOUND"
+    status_code: int = 404
+
+
+class RedemptionOperationConflictError(KaucjomatError):
+    """Blokuje użycie identyfikatora zakończonej operacji z inną treścią."""
+
+    error_code: str = "REDEMPTION_OPERATION_CONFLICT"
+    status_code: int = 409
+
+
+class DemoGenerationConflictError(KaucjomatError):
+    """Odrzuca żądanie pochodzące z pokazu sprzed resetu."""
+
+    error_code: str = "DEMO_GENERATION_CONFLICT"
+    status_code: int = 409

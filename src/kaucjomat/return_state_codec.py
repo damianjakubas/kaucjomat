@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, datetime
 import math
 from typing import Any, Literal
 import uuid
 
+from kaucjomat.checkout_state_codec import validate_checkout_state
 from kaucjomat.return_domain import DepositDecision, format_pln_from_grosze
 from kaucjomat.voucher_domain import (
     EXPIRED_TEST_VOUCHER_CODE,
@@ -22,7 +24,7 @@ from kaucjomat.voucher_state_codec import (
     voucher_record_to_dict,
 )
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 ALLOWED_SESSION_STATUS = "OPEN"
 
 
@@ -85,6 +87,8 @@ def create_empty_state() -> dict[str, Any]:
     """Tworzy słownik reprezentujący czysty stan początkowy magazynu DEMO z bonem testowym."""
     return {
         "schema_version": SCHEMA_VERSION,
+        "demo_generation_id": str(uuid.uuid4()),
+        "checkout_redemptions": [],
         "returned_instance_ids": [],
         "session": create_open_session_dict(),
         "vouchers": [voucher_record_to_dict(create_expired_test_voucher())],
@@ -131,8 +135,11 @@ def validate_state_payload(
     """Waliduje pełny ładunek JSON stanu zwrotów i bonów (z migracją starszych plików v1)."""
     if not isinstance(raw, dict):
         raise ValueError("Główna struktura JSON musi być obiektem.")
-    if raw.get("schema_version") != SCHEMA_VERSION:
+    version = raw.get("schema_version")
+    if type(version) is not int or version not in (1, SCHEMA_VERSION):
         raise ValueError("Nieobsługiwana wersja schematu pliku stanu.")
+    # Nie zmieniamy obiektu wejściowego, także gdy późniejszy etap walidacji odmówi migracji.
+    raw = deepcopy(raw)
 
     returned_ids = raw.get("returned_instance_ids")
     if not isinstance(returned_ids, list) or not all(isinstance(item, str) for item in returned_ids):
@@ -158,8 +165,10 @@ def validate_state_payload(
     # Jednokrotne parsowanie rekordów podczas odczytu zapobiega podwójnej konwersji później.
     parsed_attempts = tuple(attempt_dict_to_record(item) for item in attempts)
 
-    migrated = False
+    migrated = version == 1
     if "vouchers" not in raw:
+        if not migrated:
+            raise ValueError("Brak wymaganego pola vouchers w stanie v2.")
         # Bezstratna migracja pliku z poprzedniej wersji: dopisujemy wygasły bon testowy DEMO.
         seed_dict = voucher_record_to_dict(create_expired_test_voucher())
         raw["vouchers"] = [seed_dict]
@@ -172,8 +181,9 @@ def validate_state_payload(
         ):
             raise ValueError("Pole vouchers musi być listą obiektów.")
         parsed_voucher_list = [voucher_dict_to_record(item, now=now) for item in vouchers_raw]
-        if not any(
-            record.voucher_code == EXPIRED_TEST_VOUCHER_CODE for record in parsed_voucher_list
+        if migrated and not any(
+            record.voucher_code.strip().upper() == EXPIRED_TEST_VOUCHER_CODE
+            for record in parsed_voucher_list
         ):
             seed_dict = voucher_record_to_dict(create_expired_test_voucher())
             vouchers_raw.append(seed_dict)
@@ -181,6 +191,8 @@ def validate_state_payload(
             migrated = True
         parsed_vouchers = tuple(parsed_voucher_list)
 
+    validate_checkout_state(raw, migrating=migrated)
+    raw["schema_version"] = SCHEMA_VERSION
     return raw, parsed_attempts, parsed_vouchers, migrated
 
 

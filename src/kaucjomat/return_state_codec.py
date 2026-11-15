@@ -9,6 +9,18 @@ from typing import Any, Literal
 import uuid
 
 from kaucjomat.return_domain import DepositDecision, format_pln_from_grosze
+from kaucjomat.voucher_domain import (
+    EXPIRED_TEST_VOUCHER_CODE,
+    VoucherRecord,
+    create_expired_test_voucher,
+)
+from kaucjomat.voucher_state_codec import (
+    require_int,
+    require_optional_str,
+    require_str,
+    voucher_dict_to_record,
+    voucher_record_to_dict,
+)
 
 SCHEMA_VERSION = 1
 ALLOWED_SESSION_STATUS = "OPEN"
@@ -56,48 +68,27 @@ def _generate_session_id() -> str:
     return f"DEMO-{uuid.uuid4().hex[:8].upper()}"
 
 
-def create_empty_state() -> dict[str, Any]:
-    """Tworzy słownik reprezentujący czysty stan początkowy magazynu DEMO."""
+def create_open_session_dict() -> dict[str, Any]:
+    """Tworzy słownik nowej, otwartej sesji zwrotów DEMO o zerowym saldzie."""
     return {
-        "schema_version": SCHEMA_VERSION,
-        "returned_instance_ids": [],
-        "session": {
-            "session_id": _generate_session_id(),
-            "status": ALLOWED_SESSION_STATUS,
-            "accepted_count": 0,
-            "redirected_glass_count": 0,
-            "rejected_count": 0,
-            "total_grosze": 0,
-            "attempts": [],
-        },
+        "session_id": _generate_session_id(),
+        "status": ALLOWED_SESSION_STATUS,
+        "accepted_count": 0,
+        "redirected_glass_count": 0,
+        "rejected_count": 0,
+        "total_grosze": 0,
+        "attempts": [],
     }
 
 
-def _require_str(raw: dict[str, Any], key: str) -> str:
-    """Wymaga wartości tekstowej typu ``str`` dla wskazanego klucza rekordu."""
-    value = raw.get(key)
-    if not isinstance(value, str):
-        raise ValueError(f"Pole {key} musi być napisem.")
-    return value
-
-
-def _require_optional_str(raw: dict[str, Any], key: str) -> str | None:
-    """Wymaga napisu ``str`` albo ``None`` dla opcjonalnego klucza rekordu."""
-    value = raw.get(key)
-    if value is not None and not isinstance(value, str):
-        raise ValueError(f"Pole {key} musi być napisem albo null.")
-    return value
-
-
-def _require_int(raw: dict[str, Any], key: str, *, minimum: int | None = None) -> int:
-    """Wymaga całkowitej liczby ``int`` (z odrzuceniem ``bool``) dla klucza rekordu."""
-    value = raw.get(key)
-    # W Pythonie bool dziedziczy po int, więc odrzucamy go jawnie przed porównaniem zakresu.
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise ValueError(f"Pole {key} musi być liczbą całkowitą.")
-    if minimum is not None and value < minimum:
-        raise ValueError(f"Pole {key} musi być >= {minimum}.")
-    return value
+def create_empty_state() -> dict[str, Any]:
+    """Tworzy słownik reprezentujący czysty stan początkowy magazynu DEMO z bonem testowym."""
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "returned_instance_ids": [],
+        "session": create_open_session_dict(),
+        "vouchers": [voucher_record_to_dict(create_expired_test_voucher())],
+    }
 
 
 def _require_finite_float(raw: dict[str, Any], key: str) -> float:
@@ -114,26 +105,30 @@ def _require_finite_float(raw: dict[str, Any], key: str) -> float:
 def attempt_dict_to_record(raw: dict[str, Any]) -> SessionAttemptRecord:
     """Konwertuje i ściśle waliduje pojedynczy wpis historii próby z JSON."""
     return SessionAttemptRecord(
-        attempt_no=_require_int(raw, "attempt_no", minimum=1),
-        timestamp_iso=_require_str(raw, "timestamp_iso"),
-        card_id=_require_optional_str(raw, "card_id"),
-        package_code=_require_str(raw, "package_code"),
-        title=_require_str(raw, "title"),
-        category=_require_str(raw, "category"),
-        volume_ml=_require_int(raw, "volume_ml"),
-        ean=_require_optional_str(raw, "ean"),
-        instance_id=_require_optional_str(raw, "instance_id"),
-        status=_require_str(raw, "status"),
-        reason_code=_require_optional_str(raw, "reason_code"),
-        deposit_grosze=_require_int(raw, "deposit_grosze", minimum=0),
-        cashier_suggested_grosze=_require_int(raw, "cashier_suggested_grosze", minimum=0),
-        message=_require_str(raw, "message"),
+        attempt_no=require_int(raw, "attempt_no", minimum=1),
+        timestamp_iso=require_str(raw, "timestamp_iso"),
+        card_id=require_optional_str(raw, "card_id"),
+        package_code=require_str(raw, "package_code"),
+        title=require_str(raw, "title"),
+        category=require_str(raw, "category"),
+        volume_ml=require_int(raw, "volume_ml"),
+        ean=require_optional_str(raw, "ean"),
+        instance_id=require_optional_str(raw, "instance_id"),
+        status=require_str(raw, "status"),
+        reason_code=require_optional_str(raw, "reason_code"),
+        deposit_grosze=require_int(raw, "deposit_grosze", minimum=0),
+        cashier_suggested_grosze=require_int(raw, "cashier_suggested_grosze", minimum=0),
+        message=require_str(raw, "message"),
         elapsed_ms=_require_finite_float(raw, "elapsed_ms"),
     )
 
 
-def validate_state_payload(raw: Any) -> tuple[dict[str, Any], tuple[SessionAttemptRecord, ...]]:
-    """Waliduje pełny ładunek JSON stanu zwrotów i zwraca zparsowane rekordy prób."""
+def validate_state_payload(
+    raw: Any,
+    *,
+    now: datetime | None = None,
+) -> tuple[dict[str, Any], tuple[SessionAttemptRecord, ...], tuple[VoucherRecord, ...], bool]:
+    """Waliduje pełny ładunek JSON stanu zwrotów i bonów (z migracją starszych plików v1)."""
     if not isinstance(raw, dict):
         raise ValueError("Główna struktura JSON musi być obiektem.")
     if raw.get("schema_version") != SCHEMA_VERSION:
@@ -154,7 +149,7 @@ def validate_state_payload(raw: Any) -> tuple[dict[str, Any], tuple[SessionAttem
         raise ValueError("Nieobsługiwany status sesji zwrotu.")
 
     for counter_key in ("accepted_count", "redirected_glass_count", "rejected_count", "total_grosze"):
-        _require_int(session, counter_key, minimum=0)
+        require_int(session, counter_key, minimum=0)
 
     attempts = session.get("attempts")
     if not isinstance(attempts, list) or not all(isinstance(item, dict) for item in attempts):
@@ -162,7 +157,31 @@ def validate_state_payload(raw: Any) -> tuple[dict[str, Any], tuple[SessionAttem
 
     # Jednokrotne parsowanie rekordów podczas odczytu zapobiega podwójnej konwersji później.
     parsed_attempts = tuple(attempt_dict_to_record(item) for item in attempts)
-    return raw, parsed_attempts
+
+    migrated = False
+    if "vouchers" not in raw:
+        # Bezstratna migracja pliku z poprzedniej wersji: dopisujemy wygasły bon testowy DEMO.
+        seed_dict = voucher_record_to_dict(create_expired_test_voucher())
+        raw["vouchers"] = [seed_dict]
+        parsed_vouchers: tuple[VoucherRecord, ...] = (voucher_dict_to_record(seed_dict, now=now),)
+        migrated = True
+    else:
+        vouchers_raw = raw.get("vouchers")
+        if not isinstance(vouchers_raw, list) or not all(
+            isinstance(item, dict) for item in vouchers_raw
+        ):
+            raise ValueError("Pole vouchers musi być listą obiektów.")
+        parsed_voucher_list = [voucher_dict_to_record(item, now=now) for item in vouchers_raw]
+        if not any(
+            record.voucher_code == EXPIRED_TEST_VOUCHER_CODE for record in parsed_voucher_list
+        ):
+            seed_dict = voucher_record_to_dict(create_expired_test_voucher())
+            vouchers_raw.append(seed_dict)
+            parsed_voucher_list.append(voucher_dict_to_record(seed_dict, now=now))
+            migrated = True
+        parsed_vouchers = tuple(parsed_voucher_list)
+
+    return raw, parsed_attempts, parsed_vouchers, migrated
 
 
 def decision_to_attempt_dict(

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KaucjaSim DEMO — Symulator polskiego systemu kaucyjnego</title>
+  <!-- Lokalne style powłoki bez zewnętrznych CDN (praca w pełni offline) -->
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Górny nagłówek z trwałym oznaczeniem trybu DEMO -->
+    <header class="app-header">
+      <div class="header-main">
+        <div class="brand-group">
+          <span class="demo-badge" id="header-demo-badge">SYMULATOR EDUKACYJNY — TRYB DEMO</span>
+          <h1 class="app-title">KaucjaSim DEMO</h1>
+          <p class="app-subtitle">Lokalna powłoka systemu kaucyjnego w Polsce (bez bazy SQL i dokumentów fiskalnych)</p>
+        </div>
+        <div class="health-pill" id="health-status" aria-live="polite">
+          <span class="health-dot" aria-hidden="true"></span>
+          <span id="health-status-text">Łączenie z lokalnym serwerem DEMO...</span>
+        </div>
+      </div>
+
+      <!-- Pasek przełączania 3 głównych widoków edukacyjnych -->
+      <nav class="view-switcher" role="tablist" aria-label="Widoki symulatora KaucjaSim DEMO">
+        <button
+          type="button"
+          class="view-tab is-active"
+          id="tab-butelkomat"
+          role="tab"
+          aria-controls="view-butelkomat"
+          aria-selected="true"
+          data-view-target="butelkomat"
+        >
+          Butelkomat
+        </button>
+        <button
+          type="button"
+          class="view-tab"
+          id="tab-kasa"
+          role="tab"
+          aria-controls="view-kasa"
+          aria-selected="false"
+          data-view-target="kasa"
+        >
+          Kasa Sklepowa
+        </button>
+        <button
+          type="button"
+          class="view-tab"
+          id="tab-analityka"
+          role="tab"
+          aria-controls="view-analityka"
+          aria-selected="false"
+          data-view-target="analityka"
+        >
+          Analityka i Benchmark GIL
+        </button>
+      </nav>
+    </header>
+
+    <!-- Baner komunikatów błędów API / walidacji -->
+    <div id="error-banner" class="status-banner" role="alert" hidden>
+      <strong class="status-banner-title">Błąd komunikacji z lokalnym API DEMO:</strong>
+      <span id="error-banner-message"></span>
+    </div>
+
+    <main class="shell-main">
+      <!-- Widok 1: Butelkomat (domyślny) -->
+      <section
+        id="view-butelkomat"
+        class="view-panel"
+        role="tabpanel"
+        aria-labelledby="tab-butelkomat"
+        data-view-panel="butelkomat"
+      >
+        <div class="panel-header">
+          <span class="panel-badge" data-view-badge="butelkomat">DEMO</span>
+          <span class="panel-latency" data-view-latency="butelkomat">Przełączanie lokalne &lt; 200 ms</span>
+        </div>
+        <h2 data-view-title="butelkomat">Butelkomat</h2>
+        <p class="panel-description" data-view-description="butelkomat">
+          Stanowisko przyjmowania opakowań zwrotnych (PET, puszka, szkło) oraz wydawania niefiskalnego bonu kaucyjnego DEMO.
+        </p>
+        <div class="panel-grid">
+          <article class="info-card">
+            <h3>Zakres planowany dla stanowiska zwrotnego</h3>
+            <p data-view-scope="butelkomat">
+              Skaner EAN, weryfikacja materiału i wydanie niefiskalnego bonu kaucji DEMO w kolejnych etapach projektu.
+            </p>
+          </article>
+          <article class="info-card">
+            <h3>Zasady prezentacji DEMO</h3>
+            <p>
+              Każda sesja symuluje zwrot opakowań edukacyjnie bez komunikacji z zewnętrznym systemem operatora ani drukarką fiskalną.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <!-- Widok 2: Kasa Sklepowa -->
+      <section
+        id="view-kasa"
+        class="view-panel"
+        role="tabpanel"
+        aria-labelledby="tab-kasa"
+        data-view-panel="kasa"
+        hidden
+      >
+        <div class="panel-header">
+          <span class="panel-badge panel-badge-pos" data-view-badge="kasa">KASA SKLEPOWA — TRYB DEMO (Dokumenty niefiskalne)</span>
+          <span class="panel-latency" data-view-latency="kasa">Przełączanie lokalne &lt; 200 ms</span>
+        </div>
+        <h2 data-view-title="kasa">Kasa Sklepowa</h2>
+        <p class="panel-description" data-view-description="kasa">
+          Ekran kasjera do naliczania kaucji, realizacji bonów zwrotnych i podglądu niefiskalnych wydruków DEMO.
+        </p>
+        <div class="pos-demo-banner">
+          KASA SKLEPOWA — TRYB DEMO (Dokumenty niefiskalne) — wszelkie kwoty i bony służą wyłącznie do symulacji edukacyjnej.
+        </div>
+        <div class="panel-grid">
+          <article class="info-card">
+            <h3>Zakres planowany dla kasy sklepowej</h3>
+            <p data-view-scope="kasa">
+              Obsługa sprzedaży z kaucją, skanowanie bonu zwrotnego i generowanie niefiskalnego wydruku kasy DEMO.
+            </p>
+          </article>
+          <article class="info-card">
+            <h3>Ochrona przed myleniem z dokumentem fiskalnym</h3>
+            <p>
+              Każdy widok kasy i późniejszy wydruk pozostaje wyraźnie oznaczony jako dokument niefiskalny TRYB DEMO.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <!-- Widok 3: Analityka i Benchmark GIL -->
+      <section
+        id="view-analityka"
+        class="view-panel"
+        role="tabpanel"
+        aria-labelledby="tab-analityka"
+        data-view-panel="analityka"
+        hidden
+      >
+        <div class="panel-header">
+          <span class="panel-badge" data-view-badge="analityka">DEMO</span>
+          <span class="panel-latency" data-view-latency="analityka">Przełączanie lokalne &lt; 200 ms</span>
+        </div>
+        <h2 data-view-title="analityka">Analityka i Benchmark GIL</h2>
+        <p class="panel-description" data-view-description="analityka">
+          Panel inspekcji logów JSONL/CSV, strumieni zdarzeń oraz wyników porównania sekwencyjnego, wątków i procesów CPU-bound.
+        </p>
+        <div class="panel-grid">
+          <article class="info-card">
+            <h3>Zakres planowany dla modułu analitycznego</h3>
+            <p data-view-scope="analityka">
+              Przegląd dzienników JSONL/CSV, przetwarzanie równoległe I/O i CPU oraz prezentacja wykresu benchmarku GIL.
+            </p>
+          </article>
+          <article class="info-card">
+            <h3>Przetwarzanie lokalne</h3>
+            <p>
+              Dane testowe oraz wyniki pomiarów wydajnościowych będą zapisywane wyłącznie lokalnie w plikach przez pathlib.Path.
+            </p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <span>KaucjaSim DEMO · Powłoka edukacyjna offline (bez bazy SQL i zewnętrznych zasobów)</span>
+      <span id="api-meta-summary">Wersja API: oczekiwanie...</span>
+    </footer>
+  </div>
+
+  <!-- Lokalny skrypt przełącznika widoków (vanilla JS bez bundlerów i bibliotek z sieci) -->
+  <script src="/static/app.js" defer></script>
+</body>
+</html>

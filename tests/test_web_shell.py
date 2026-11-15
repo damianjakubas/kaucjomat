@@ -1,0 +1,188 @@
+"""Testy dymne powłoki HTML/CSS/JS oraz automatyczni strażnicy jakości kodu."""
+
+import ast
+from pathlib import Path
+
+from fastapi.testclient import TestClient
+
+from kaucjomat.app import create_app
+from kaucjomat.config import get_project_root
+
+
+def test_root_serves_offline_demo_shell_with_three_views() -> None:
+    """Sprawdza serwowanie `/` oraz obecność wszystkich 3 widoków, napisów DEMO i brak CDN."""
+    client = TestClient(create_app())
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+
+    html = response.text
+    required_fragments = (
+        "KaucjaSim",
+        "DEMO",
+        "SYMULATOR EDUKACYJNY — TRYB DEMO",
+        "KASA SKLEPOWA — TRYB DEMO (Dokumenty niefiskalne)",
+        "Butelkomat",
+        "Kasa Sklepowa",
+        "Analityka i Benchmark GIL",
+        'data-view-panel="butelkomat"',
+        'data-view-panel="kasa"',
+        'data-view-panel="analityka"',
+        'data-view-target="butelkomat"',
+        'data-view-target="kasa"',
+        'data-view-target="analityka"',
+        "/static/styles.css",
+        "/static/app.js",
+    )
+    for fragment in required_fragments:
+        assert fragment in html, f"Brak wymaganego fragmentu w index.html: {fragment}"
+
+    # Powłoka ma działać w pełni offline bez zewnętrznych źródeł CDN.
+    assert "http://" not in html.lower()
+    assert "https://" not in html.lower()
+
+
+def test_static_assets_served_with_expected_content() -> None:
+    """Weryfikuje serwowanie lokalnych zasobów `/static/styles.css` i `/static/app.js`."""
+    client = TestClient(create_app())
+
+    css_response = client.get("/static/styles.css")
+    assert css_response.status_code == 200
+    assert "text/css" in css_response.headers["content-type"]
+    assert ".demo-badge" in css_response.text
+    assert ".view-switcher" in css_response.text
+    assert "http://" not in css_response.text.lower()
+    assert "https://" not in css_response.text.lower()
+
+    js_response = client.get("/static/app.js")
+    assert js_response.status_code == 200
+    assert "javascript" in js_response.headers["content-type"]
+    assert "/**" in js_response.text
+    for fn_name in ("selectView", "fetchViewMetadata", "renderErrorBanner", "initAppShell"):
+        assert fn_name in js_response.text, f"Brak funkcji {fn_name} w app.js"
+    assert "http://" not in js_response.text.lower()
+    assert "https://" not in js_response.text.lower()
+
+
+def test_module_line_count_limits() -> None:
+    """Pilnuje, aby żaden plik źródłowy w `src/kaucjomat/` i `tests/` nie miał >= 300 linii."""
+    root = get_project_root()
+    checked_dirs = (root / "src" / "kaucjomat", root / "tests")
+    source_extensions = {".py", ".html", ".css", ".js"}
+
+    violations: list[str] = []
+    for base_dir in checked_dirs:
+        for file_path in sorted(base_dir.rglob("*")):
+            if not file_path.is_file() or file_path.suffix not in source_extensions:
+                continue
+            if "__pycache__" in file_path.parts:
+                continue
+            line_count = len(file_path.read_text(encoding="utf-8").splitlines())
+            if line_count >= 300:
+                rel_path = file_path.relative_to(root)
+                violations.append(f"{rel_path}: {line_count} linii (limit < 300)")
+
+    assert not violations, f"Przekroczono limit 300 linii: {violations}"
+
+
+def _is_model_or_dataclass(class_node: ast.ClassDef) -> bool:
+    """Rozpoznaje klasy Pydantic BaseModel oraz klasy oznaczone dekoratorem @dataclass."""
+    for base in class_node.bases:
+        if isinstance(base, ast.Name) and base.id == "BaseModel":
+            return True
+        if isinstance(base, ast.Attribute) and base.attr == "BaseModel":
+            return True
+
+    for decorator in class_node.decorator_list:
+        if isinstance(decorator, ast.Name) and decorator.id == "dataclass":
+            return True
+        if isinstance(decorator, ast.Call):
+            func = decorator.func
+            if isinstance(func, ast.Name) and func.id == "dataclass":
+                return True
+            if isinstance(func, ast.Attribute) and func.attr == "dataclass":
+                return True
+    return False
+
+
+def _collect_missing_annotations_and_docstrings(module_path: Path, tree: ast.Module) -> list[str]:
+    """Zbiera braki docstringów i adnotacji typów z modułu Pythona."""
+    issues: list[str] = []
+    rel_name = module_path.name
+
+    if not ast.get_docstring(tree):
+        issues.append(f"{rel_name}: brak docstringa modułu")
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef):
+            if not ast.get_docstring(node):
+                issues.append(f"{rel_name}:{node.name}: brak docstringa klasy")
+            if _is_model_or_dataclass(node):
+                ann_fields = [
+                    stmt for stmt in node.body if isinstance(stmt, ast.AnnAssign)
+                ]
+                unannotated = [
+                    stmt for stmt in node.body if isinstance(stmt, ast.Assign)
+                ]
+                if not ann_fields:
+                    issues.append(f"{rel_name}:{node.name}: brak adnotacji pól (AnnAssign)")
+                if unannotated:
+                    issues.append(f"{rel_name}:{node.name}: wykryto pola bez adnotacji typu")
+
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if not ast.get_docstring(node):
+                issues.append(f"{rel_name}:{node.name}: brak docstringa funkcji/metody")
+            if node.returns is None:
+                issues.append(f"{rel_name}:{node.name}: brak adnotacji zwracanego typu")
+
+            positional = [*node.args.posonlyargs, *node.args.args, *node.args.kwonlyargs]
+            for arg in positional:
+                if arg.arg in {"self", "cls"}:
+                    continue
+                if arg.annotation is None:
+                    issues.append(
+                        f"{rel_name}:{node.name}({arg.arg}): brak adnotacji typu argumentu"
+                    )
+
+    return issues
+
+
+def test_docstrings_and_type_annotations_present() -> None:
+    """Weryfikuje przez AST obecność docstringów i adnotacji typów w `src/kaucjomat/*.py`."""
+    src_dir = get_project_root() / "src" / "kaucjomat"
+    all_issues: list[str] = []
+
+    for py_file in sorted(src_dir.glob("*.py")):
+        source = py_file.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=str(py_file))
+        all_issues.extend(_collect_missing_annotations_and_docstrings(py_file, tree))
+
+    assert not all_issues, "Braki docstringów lub adnotacji typów:\n" + "\n".join(all_issues)
+
+
+def test_requirements_txt_contains_runtime_dependencies_only() -> None:
+    """Sprawdza aktualność `requirements.txt` (tylko zależności runtime bez pytest i `-e .`)."""
+    req_path = get_project_root() / "requirements.txt"
+    assert req_path.is_file(), "Brak pliku requirements.txt w katalogu głównym."
+
+    lines = [
+        line.strip().lower()
+        for line in req_path.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
+    joined = "\n".join(lines)
+
+    assert any(line.startswith("fastapi==") or line == "fastapi" for line in lines), (
+        f"Brak fastapi w requirements.txt: {joined}"
+    )
+    assert any(line.startswith("uvicorn==") or line == "uvicorn" for line in lines), (
+        f"Brak uvicorn w requirements.txt: {joined}"
+    )
+    assert not any("pytest" in line for line in lines), (
+        f"Zależność dev pytest nie powinna trafiać do requirements.txt: {joined}"
+    )
+    assert not any(line.startswith("-e") for line in lines), (
+        f"Wpis lokalny `-e .` nie powinien trafiać do requirements.txt: {joined}"
+    )

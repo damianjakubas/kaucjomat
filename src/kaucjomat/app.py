@@ -5,7 +5,8 @@ from typing import cast, Literal
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from kaucjomat.config import (
     APP_NAME,
@@ -16,6 +17,7 @@ from kaucjomat.config import (
     VIEWS,
     VIEWS_BY_ID,
     ViewDefinition,
+    get_static_dir,
 )
 from kaucjomat.exceptions import InvalidConfigurationError, KaucjomatError, ViewNotFoundError
 from kaucjomat.logging_config import configure_logging, get_logger
@@ -117,6 +119,14 @@ def create_app() -> FastAPI:
             mode=_DEMO_MODE,
         )
         return JSONResponse(status_code=422, content=payload.model_dump())
+
+    static_dir = get_static_dir()
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+    @app.get("/", include_in_schema=False)
+    def read_index() -> FileResponse:
+        """Serwuje główny dokument HTML lokalnej powłoki KaucjaSim DEMO."""
+        return FileResponse(static_dir / "index.html", media_type="text/html")
 
     @app.get("/api/health", response_model=HealthResponse, tags=["system"])
     def read_health() -> HealthResponse:

@@ -41,11 +41,21 @@ class TestCardsListResponse(BaseModel):
 class DepositCustomCandidateInput(BaseModel):
     """Parametry niestandardowego opakowania przesyłanego bezpośrednio w żądaniu wrzutu."""
 
-    package_code: str = Field(description="Kod etykiety opakowania analizowany przez parser regex.")
+    package_code: str = Field(
+        min_length=1,
+        max_length=128,
+        description="Kod etykiety opakowania analizowany przez parser regex.",
+    )
     category: PackageCategory = Field(description="Kategoria materiałowa opakowania.")
-    volume_ml: int = Field(description="Pojemność opakowania w mililitrach.")
+    volume_ml: int = Field(
+        ge=-1_000_000,
+        le=1_000_000,
+        description="Pojemność opakowania w mililitrach.",
+    )
     title: str = Field(
         default="Opakowanie niestandardowe",
+        min_length=1,
+        max_length=120,
         description="Nazwa opisowa opakowania prezentowana w historii sesji.",
     )
     has_deposit_logo: bool = Field(
@@ -67,6 +77,7 @@ class DepositRequest(BaseModel):
 
     card_id: str | None = Field(
         default=None,
+        max_length=64,
         description="Identyfikator predefiniowanej karty testowej z półki DEMO.",
     )
     custom_candidate: DepositCustomCandidateInput | None = Field(

@@ -61,6 +61,7 @@ def test_root_serves_offline_demo_shell_with_three_views() -> None:
         "/static/styles.css",
         "/static/return_machine.css",
         "/static/app.js",
+        "/static/return_machine_view.js",
         "/static/return_machine.js",
     )
     for fragment in required_fragments:
@@ -94,6 +95,14 @@ def test_static_assets_served_with_expected_content() -> None:
     for fn_name in ("selectView", "fetchViewMetadata", "renderErrorBanner", "initAppShell"):
         assert fn_name in js_response.text, f"Brak funkcji {fn_name} w app.js"
     _assert_no_external_urls(js_response.text, "app.js")
+
+    machine_view_js_response = client.get("/static/return_machine_view.js")
+    assert machine_view_js_response.status_code == 200
+    assert "javascript" in machine_view_js_response.headers["content-type"]
+    assert "/**" in machine_view_js_response.text
+    for fn_name in ("renderScannerDecision", "renderSessionState", "buildPackageCardElement"):
+        assert fn_name in machine_view_js_response.text, f"Brak funkcji {fn_name} w return_machine_view.js"
+    _assert_no_external_urls(machine_view_js_response.text, "return_machine_view.js")
 
     machine_js_response = client.get("/static/return_machine.js")
     assert machine_js_response.status_code == 200

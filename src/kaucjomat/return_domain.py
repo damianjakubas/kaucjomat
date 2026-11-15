@@ -135,6 +135,7 @@ def _build_rejected_decision(
     )
 
 
+# Zewnętrzny log_deposit_attempt zapisuje czas zmierzony przez wewnętrzny enforce_latency_budget.
 @log_deposit_attempt
 @enforce_latency_budget(max_ms=200.0)
 def evaluate_package_return(
@@ -204,14 +205,22 @@ def evaluate_package_return(
             instance_id=parsed_code.instance_id,
         )
 
-    # Reguła #6: kontrola limitu pojemności właściwego dla materiału.
-    volume_limit = VOLUME_LIMITS_ML.get(candidate.category)
-    if candidate.volume_ml <= 0 or (volume_limit is not None and candidate.volume_ml > volume_limit):
-        limit_hint = f"{volume_limit} ml" if volume_limit is not None else "dozwolonego zakresu"
+    # Reguła #6: kontrola dodatniej objętości i limitu pojemności właściwego dla materiału.
+    if candidate.volume_ml <= 0:
         return _build_rejected_decision(
             candidate,
             RejectionReason.VOLUME_LIMIT_EXCEEDED,
-            f"Odrzucono (DEMO): pojemność {candidate.volume_ml} ml przekracza limit {limit_hint}.",
+            f"Odrzucono (DEMO): pojemność opakowania musi być dodatnia (podano {candidate.volume_ml} ml).",
+            ean=parsed_code.ean,
+            instance_id=parsed_code.instance_id,
+        )
+
+    volume_limit = VOLUME_LIMITS_ML.get(candidate.category)
+    if volume_limit is not None and candidate.volume_ml > volume_limit:
+        return _build_rejected_decision(
+            candidate,
+            RejectionReason.VOLUME_LIMIT_EXCEEDED,
+            f"Odrzucono (DEMO): pojemność {candidate.volume_ml} ml przekracza limit {volume_limit} ml.",
             ean=parsed_code.ean,
             instance_id=parsed_code.instance_id,
         )

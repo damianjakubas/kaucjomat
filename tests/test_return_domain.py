@@ -14,6 +14,7 @@ from kaucjomat.return_domain import (
     GLASS_CASHIER_DEPOSIT_GROSZE,
     PET_CAN_DEPOSIT_GROSZE,
     DecisionStatus,
+    DepositDecision,
     PackageCandidate,
     PackageCategory,
     RejectionReason,
@@ -85,6 +86,23 @@ def test_log_deposit_attempt_and_latency_warning_emit_log_records() -> None:
             return candidate
 
         slow_operation(card.candidate)
+
+        @log_deposit_attempt
+        def failing_validator(candidate: PackageCandidate) -> DepositDecision:
+            """Symuluje wyjątek domenowy w udekorowanej funkcji dla testu logowania."""
+            raise RuntimeError("symulowany\nbłąd\rcrlf")
+
+        with pytest.raises(RuntimeError):
+            failing_validator(
+                PackageCandidate(
+                    package_code="PL-KAUCJA-5900000000114-PET-000101\nFAKE LOG",
+                    title="Test log injection",
+                    category=PackageCategory.PET,
+                    volume_ml=500,
+                    has_deposit_logo=True,
+                    is_crushed=False,
+                )
+            )
     finally:
         logger.removeHandler(handler)
         logger.setLevel(previous_level)
@@ -92,6 +110,8 @@ def test_log_deposit_attempt_and_latency_warning_emit_log_records() -> None:
     messages = [record.getMessage() for record in handler.records]
     assert any("status=ACCEPTED" in msg and "PL-KAUCJA-5900000000114-PET-000101" in msg for msg in messages)
     assert any("Przekroczono budżet czasu funkcji slow_operation" in msg for msg in messages)
+    warning_msgs = [msg for msg in messages if "Błąd podczas walidacji wrzutu" in msg]
+    assert warning_msgs and all("\n" not in msg and "\r" not in msg for msg in warning_msgs)
 
 
 def test_package_code_regex_named_groups_valid_and_invalid() -> None:
@@ -235,5 +255,19 @@ def test_all_rejection_reasons_and_deterministic_priority() -> None:
         is_empty=False,
     )
     assert evaluate_package_return(not_empty, set()).reason_code == RejectionReason.NOT_EMPTY
+
+    non_positive_volume = PackageCandidate(
+        package_code="PL-KAUCJA-5900000000114-PET-000888",
+        title="Zerowa pojemność PET",
+        category=PackageCategory.PET,
+        volume_ml=0,
+        has_deposit_logo=True,
+        is_crushed=False,
+        is_empty=True,
+    )
+    non_positive_decision = evaluate_package_return(non_positive_volume, set())
+    assert non_positive_decision.reason_code == RejectionReason.VOLUME_LIMIT_EXCEEDED
+    assert "musi być dodatnia" in non_positive_decision.message
+
     assert format_pln_from_grosze(50) == "0,50 zł"
     assert format_pln_from_grosze(100) == "1,00 zł"

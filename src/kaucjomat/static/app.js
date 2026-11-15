@@ -5,7 +5,14 @@
 
 const VALID_VIEW_IDS = ["butelkomat", "kasa", "analityka"];
 const DEFAULT_VIEW_ID = "butelkomat";
-const errorMessagesBySource = { health: "", view: "", returns: "" };
+const errorMessagesBySource = {
+  health: "",
+  view: "",
+  returns: "",
+  returnsCards: "",
+  returnsSession: "",
+  returnsAction: "",
+};
 
 /**
  * Normalizuje identyfikator widoku (np. z hasha URL) do jednej z 3 obsługiwanych zakładek.
@@ -35,9 +42,9 @@ async function readJsonSafely(response) {
 }
 
 /**
- * Wyświetla lub ukrywa baner błędu komunikacji z API z rozdzieleniem źródeł (health/view/returns).
+ * Wyświetla lub ukrywa baner błędu komunikacji z API z rozdzieleniem źródeł (health/view/returns*).
  * @param {string} message - Treść błędu po polsku; pusty napis czyści dane źródło.
- * @param {"health"|"view"|"returns"} [source="view"] - Nazwa źródła zgłaszającego komunikat.
+ * @param {"health"|"view"|"returns"|"returnsCards"|"returnsSession"|"returnsAction"} [source="view"] - Nazwa źródła zgłaszającego komunikat.
  * @returns {void}
  */
 function renderErrorBanner(message, source = "view") {

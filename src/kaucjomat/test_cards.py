@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Final, Literal
 
 from kaucjomat.exceptions import PackageCardNotFoundError
+from kaucjomat.logging_config import sanitize_for_log
 from kaucjomat.return_domain import PackageCandidate, PackageCategory
 
 
@@ -176,7 +177,8 @@ def get_test_card_by_id(card_id: str) -> TestPackageCard:
     normalized_id = card_id.strip()
     card = _CARDS_BY_ID.get(normalized_id)
     if card is None:
+        safe_id = sanitize_for_log(card_id, max_length=64)
         raise PackageCardNotFoundError(
-            f"Nie znaleziono karty testowej opakowania o identyfikatorze '{card_id}'."
+            f"Nie znaleziono karty testowej opakowania o identyfikatorze '{safe_id}'."
         )
     return card

@@ -9,7 +9,7 @@ import time
 from typing import ParamSpec, TypeVar, cast
 
 from kaucjomat.exceptions import InvalidConfigurationError
-from kaucjomat.logging_config import get_logger
+from kaucjomat.logging_config import get_logger, sanitize_for_log
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -22,17 +22,20 @@ def _extract_package_code(args: tuple[object, ...], kwargs: dict[str, object]) -
     candidate = kwargs.get("candidate")
     if candidate is None and args:
         candidate = args[0]
-    return str(getattr(candidate, "package_code", candidate or "?"))
+    raw_code = getattr(candidate, "package_code", candidate or "?")
+    return sanitize_for_log(raw_code, max_length=128)
 
 
 def _attach_timing_to_result(result: R, elapsed_ms: float, within_budget: bool) -> R:
     """Aktualizuje pola pomiaru czasu w wyniku typu dataclass, jeśli je posiada."""
+    # Odrzucamy obiekty klas (type), bo is_dataclass zwraca True także dla typu klasy.
     if not is_dataclass(result) or isinstance(result, type):
         return result
 
     field_names = {field.name for field in fields(result)}
     updates: dict[str, object] = {}
     if "elapsed_ms" in field_names:
+        # Dolne ograniczenie 0.01 ms zapobiega wyświetlaniu mylącego 0.00 ms w szybkich testach.
         updates["elapsed_ms"] = max(0.01, elapsed_ms)
     if "within_latency_budget" in field_names:
         updates["within_latency_budget"] = within_budget
@@ -56,7 +59,7 @@ def log_deposit_attempt(func: Callable[P, R]) -> Callable[P, R]:
                 "Błąd podczas walidacji wrzutu opakowania %s w %s: %s",
                 package_code,
                 func.__name__,
-                exc,
+                sanitize_for_log(exc, max_length=160),
             )
             raise
 

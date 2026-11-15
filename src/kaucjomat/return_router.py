@@ -105,6 +105,7 @@ def _resolve_candidate_from_request(
     """Rozstrzyga kandydata opakowania na podstawie card_id lub custom_candidate."""
     has_card_id = payload.card_id is not None
     has_custom = payload.custom_candidate is not None
+    # Wymagamy dokładnie jednego źródła danych (wykluczający się wybór XOR).
     if has_card_id == has_custom:
         raise InvalidDepositRequestError(
             "Żądanie wrzutu musi zawierać dokładnie jedno źródło: card_id albo custom_candidate."
@@ -117,18 +118,22 @@ def _resolve_candidate_from_request(
         card = get_test_card_by_id(normalized_card_id)
         return card.candidate, card.card_id
 
-    custom = payload.custom_candidate
-    assert custom is not None
-    candidate = PackageCandidate(
-        package_code=custom.package_code,
-        title=custom.title,
-        category=custom.category,
-        volume_ml=custom.volume_ml,
-        has_deposit_logo=custom.has_deposit_logo,
-        is_crushed=custom.is_crushed,
-        is_empty=custom.is_empty,
+    if payload.custom_candidate is not None:
+        custom = payload.custom_candidate
+        candidate = PackageCandidate(
+            package_code=custom.package_code,
+            title=custom.title,
+            category=custom.category,
+            volume_ml=custom.volume_ml,
+            has_deposit_logo=custom.has_deposit_logo,
+            is_crushed=custom.is_crushed,
+            is_empty=custom.is_empty,
+        )
+        return candidate, None
+
+    raise InvalidDepositRequestError(
+        "Żądanie wrzutu musi zawierać dokładnie jedno źródło: card_id albo custom_candidate."
     )
-    return candidate, None
 
 
 def create_return_router(store: ReturnStateStore) -> APIRouter:

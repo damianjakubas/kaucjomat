@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
+import json
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from kaucjomat.app import create_app
+from kaucjomat.return_store import ReturnStateStore
+from kaucjomat.test_cards import get_test_card_by_id
 
 
 def _make_client(state_file: Path) -> TestClient:
@@ -184,6 +188,18 @@ def test_custom_candidate_and_reset_clears_registry_and_session(tmp_path: Path) 
             422,
             "VALIDATION_ERROR",
         ),
+        ({"card_id": "x" * 65}, 422, "VALIDATION_ERROR"),
+        (
+            {
+                "custom_candidate": {
+                    "package_code": "PL-KAUCJA-5900000000992-CAN-009901",
+                    "category": "CAN",
+                    "volume_ml": 2_000_000,
+                }
+            },
+            422,
+            "VALIDATION_ERROR",
+        ),
     ],
 )
 def test_deposit_technical_errors_return_error_response_contract(
@@ -218,3 +234,51 @@ def test_corrupted_state_file_returns_safe_500_error(tmp_path: Path) -> None:
     assert body["error_code"] == "RETURN_STATE_STORAGE_ERROR"
     assert str(tmp_path) not in body["message"]
     assert body["detail"] is None
+
+
+def test_corrupted_attempt_types_and_env_state_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Waliduje błędne typy rekordów JSON (np. bool jako attempt_no) i zmienną środowiskową."""
+    env_state = tmp_path / "env_state.json"
+    bad_payload = {
+        "schema_version": 1,
+        "returned_instance_ids": [],
+        "session": {
+            "session_id": "DEMO-12345678",
+            "status": "OPEN",
+            "accepted_count": 0,
+            "redirected_glass_count": 0,
+            "rejected_count": 0,
+            "total_grosze": 0,
+            "attempts": [{"attempt_no": True}],
+        },
+    }
+    env_state.write_text(json.dumps(bad_payload), encoding="utf-8")
+    monkeypatch.setenv("KAUCJOMAT_STATE_FILE", str(env_state))
+
+    client = TestClient(create_app())
+    resp = client.get("/api/returns/session")
+    assert resp.status_code == 500
+    assert resp.json()["error_code"] == "RETURN_STATE_STORAGE_ERROR"
+
+
+def test_concurrent_store_deposits_preserve_unique_attempt_numbers(tmp_path: Path) -> None:
+    """Wielowątkowe wrzuty do ReturnStateStore zachowują spójność JSON i numerację prób."""
+    store = ReturnStateStore(tmp_path / "concurrent.json")
+    candidates = [
+        get_test_card_by_id("pet-water-1500-a").candidate,
+        get_test_card_by_id("pet-water-1500-b").candidate,
+        get_test_card_by_id("can-cola-500").candidate,
+        get_test_card_by_id("glass-beer-500").candidate,
+        get_test_card_by_id("reject-no-logo").candidate,
+        get_test_card_by_id("pet-water-1500-a").candidate,
+    ]
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        results = list(pool.map(store.process_deposit, candidates))
+
+    assert len(results) == 6
+    snapshot = store.get_session_snapshot()
+    attempt_numbers = [item.attempt_no for item in snapshot.attempts]
+    assert attempt_numbers == [6, 5, 4, 3, 2, 1]
+    assert snapshot.total_grosze == 150
+    assert snapshot.returned_registry_size == 3

@@ -84,6 +84,11 @@ def get_default_log_dir() -> Path:
     return get_project_root() / "data" / "generated" / "logs"
 
 
+def get_default_return_state_file() -> Path:
+    """Zwraca domyślną ścieżkę pliku stanu sesji zwrotów i rejestru DEMO."""
+    return get_project_root() / "data" / "generated" / "state" / "return_state.json"
+
+
 def resolve_port(cli_port: int | None = None) -> int:
     """Wyznacza i waliduje numer portu serwera z argumentu CLI lub zmiennej PORT."""
     if cli_port is not None:

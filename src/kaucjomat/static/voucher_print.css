@@ -1,0 +1,159 @@
+/* Arkusz stylów karty bonu kaucyjnego DEMO oraz wydruku / zapisu do PDF (@media print) */
+.summary-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+.btn-issue-voucher {
+  appearance: none;
+  border: 1px solid var(--accent-strong);
+  background: var(--accent-primary);
+  color: #ffffff;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+.btn-issue-voucher:hover:not(:disabled) { background: var(--accent-strong); }
+.btn-issue-voucher:disabled {
+  background: #cbd8d0;
+  border-color: #b4c4ba;
+  color: #4b6154;
+  cursor: not-allowed;
+  opacity: 0.75;
+}
+
+.issued-voucher-card {
+  padding: 16px;
+  border-radius: 10px;
+  background: var(--bg-card);
+  border: 2px solid var(--accent-primary);
+  box-shadow: 0 4px 14px rgba(15, 118, 110, 0.12);
+}
+.voucher-card-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.voucher-watermark-demo {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--demo-bg);
+  border: 1px solid var(--demo-border);
+  color: var(--demo-text);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+.voucher-status-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #ecfdf5;
+  border: 1px solid #10b981;
+  color: #065f46;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+.voucher-print-banner {
+  margin: 0 0 12px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #ecfdf5;
+  border: 1px dashed var(--accent-primary);
+  color: var(--accent-strong);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.voucher-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+  margin: 0 0 12px;
+}
+.voucher-grid dt { font-size: 0.72rem; color: var(--text-muted); margin-bottom: 2px; }
+.voucher-grid dd { margin: 0; font-size: 0.9rem; color: var(--text-main); word-break: break-word; }
+.voucher-code-mono { font-family: Consolas, "Courier New", monospace; font-weight: 700; }
+.voucher-amount-strong { font-size: 1.06rem; font-weight: 700; color: var(--accent-strong); }
+
+.voucher-card-actions { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+.btn-print-voucher {
+  appearance: none;
+  border: 1px solid var(--accent-strong);
+  background: var(--bg-subtle);
+  color: var(--accent-strong);
+  padding: 7px 13px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.84rem;
+  cursor: pointer;
+}
+.btn-print-voucher:hover { background: #d7e7dd; }
+.voucher-seed-note { margin: 0; font-size: 0.78rem; color: var(--text-muted); }
+
+/* Izolacja pojedynczej karty bonu DEMO na czystej stronie wydruku / PDF */
+@media print {
+  @page { margin: 14mm; }
+
+  body,
+  .app-shell,
+  .view-panel,
+  .issued-voucher-card,
+  .voucher-watermark-demo,
+  .voucher-print-banner,
+  .voucher-status-badge {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .app-header,
+  #error-banner,
+  #view-butelkomat > .panel-header,
+  #view-butelkomat > h2,
+  #view-butelkomat > .panel-description,
+  .session-summary-bar,
+  .return-column-right,
+  #deposit-dropzone,
+  .session-history-box,
+  .app-footer,
+  #print-voucher-btn,
+  #voucher-seed-note,
+  .view-panel[hidden] {
+    display: none !important;
+  }
+
+  body,
+  .app-shell,
+  .view-panel {
+    background: #ffffff !important;
+    border: none !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: none !important;
+  }
+
+  .return-station-grid { display: block !important; }
+
+  #issued-voucher-card:not([hidden]) {
+    display: block !important;
+    width: 100% !important;
+    max-width: 170mm;
+    margin: 0 auto;
+    padding: 18px;
+    border: 2px solid #13221a;
+    box-shadow: none;
+  }
+  #issued-voucher-card[hidden] { display: none !important; }
+
+  .voucher-print-banner {
+    background: #13221a;
+    color: #ffffff;
+    border: 1px solid #13221a;
+    font-size: 0.85rem;
+    padding: 8px 12px;
+  }
+}

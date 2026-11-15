@@ -1,12 +1,33 @@
 """Testy dymne powłoki HTML/CSS/JS oraz automatyczni strażnicy jakości kodu."""
 
 import ast
+import tomllib
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 
 from kaucjomat.app import create_app
 from kaucjomat.config import get_project_root
+
+
+def _assert_no_external_urls(content: str, asset_name: str) -> None:
+    """Sprawdza brak odwołań sieciowych i protocol-relative URL w zasobach frontendowych."""
+    lowered = content.lower()
+    forbidden_schemes = ("http://", "https://", "ws://", "wss://", "ftp://")
+    for scheme in forbidden_schemes:
+        assert scheme not in lowered, f"Wykryto zewnętrzny schemat {scheme} w {asset_name}."
+
+    protocol_relative_refs = ('src="//', "src='//", 'href="//', "href='//", "url(//", 'url("//', "url('//")
+    for ref in protocol_relative_refs:
+        assert ref not in lowered, f"Wykryto adres protocol-relative {ref} w {asset_name}."
+
+
+def _extract_pkg_name(requirement_spec: str) -> str:
+    """Wyodrębnia znormalizowaną nazwę pakietu z deklaracji zależności bez użycia regexów."""
+    cleaned = requirement_spec.strip().lower()
+    for sep in (";", "[", "=", "<", ">", "!", "~", " "):
+        cleaned = cleaned.split(sep, 1)[0]
+    return cleaned.strip().replace("_", "-")
 
 
 def test_root_serves_offline_demo_shell_with_three_views() -> None:
@@ -39,9 +60,7 @@ def test_root_serves_offline_demo_shell_with_three_views() -> None:
     for fragment in required_fragments:
         assert fragment in html, f"Brak wymaganego fragmentu w index.html: {fragment}"
 
-    # Powłoka ma działać w pełni offline bez zewnętrznych źródeł CDN.
-    assert "http://" not in html.lower()
-    assert "https://" not in html.lower()
+    _assert_no_external_urls(html, "index.html")
 
 
 def test_static_assets_served_with_expected_content() -> None:
@@ -53,8 +72,7 @@ def test_static_assets_served_with_expected_content() -> None:
     assert "text/css" in css_response.headers["content-type"]
     assert ".demo-badge" in css_response.text
     assert ".view-switcher" in css_response.text
-    assert "http://" not in css_response.text.lower()
-    assert "https://" not in css_response.text.lower()
+    _assert_no_external_urls(css_response.text, "styles.css")
 
     js_response = client.get("/static/app.js")
     assert js_response.status_code == 200
@@ -62,12 +80,11 @@ def test_static_assets_served_with_expected_content() -> None:
     assert "/**" in js_response.text
     for fn_name in ("selectView", "fetchViewMetadata", "renderErrorBanner", "initAppShell"):
         assert fn_name in js_response.text, f"Brak funkcji {fn_name} w app.js"
-    assert "http://" not in js_response.text.lower()
-    assert "https://" not in js_response.text.lower()
+    _assert_no_external_urls(js_response.text, "app.js")
 
 
 def test_module_line_count_limits() -> None:
-    """Pilnuje, aby żaden plik źródłowy w `src/kaucjomat/` i `tests/` nie miał >= 300 linii."""
+    """Pilnuje limitu < 300 linii w modułach/testach oraz < 200 linii w `styles.css`."""
     root = get_project_root()
     checked_dirs = (root / "src" / "kaucjomat", root / "tests")
     source_extensions = {".py", ".html", ".css", ".js"}
@@ -80,11 +97,12 @@ def test_module_line_count_limits() -> None:
             if "__pycache__" in file_path.parts:
                 continue
             line_count = len(file_path.read_text(encoding="utf-8").splitlines())
-            if line_count >= 300:
+            limit = 200 if file_path.name == "styles.css" else 300
+            if line_count >= limit:
                 rel_path = file_path.relative_to(root)
-                violations.append(f"{rel_path}: {line_count} linii (limit < 300)")
+                violations.append(f"{rel_path}: {line_count} linii (limit < {limit})")
 
-    assert not violations, f"Przekroczono limit 300 linii: {violations}"
+    assert not violations, f"Przekroczono limit linii: {violations}"
 
 
 def _is_model_or_dataclass(class_node: ast.ClassDef) -> bool:
@@ -120,12 +138,8 @@ def _collect_missing_annotations_and_docstrings(module_path: Path, tree: ast.Mod
             if not ast.get_docstring(node):
                 issues.append(f"{rel_name}:{node.name}: brak docstringa klasy")
             if _is_model_or_dataclass(node):
-                ann_fields = [
-                    stmt for stmt in node.body if isinstance(stmt, ast.AnnAssign)
-                ]
-                unannotated = [
-                    stmt for stmt in node.body if isinstance(stmt, ast.Assign)
-                ]
+                ann_fields = [stmt for stmt in node.body if isinstance(stmt, ast.AnnAssign)]
+                unannotated = [stmt for stmt in node.body if isinstance(stmt, ast.Assign)]
                 if not ann_fields:
                     issues.append(f"{rel_name}:{node.name}: brak adnotacji pól (AnnAssign)")
                 if unannotated:
@@ -150,11 +164,13 @@ def _collect_missing_annotations_and_docstrings(module_path: Path, tree: ast.Mod
 
 
 def test_docstrings_and_type_annotations_present() -> None:
-    """Weryfikuje przez AST obecność docstringów i adnotacji typów w `src/kaucjomat/*.py`."""
+    """Weryfikuje przez AST obecność docstringów i adnotacji typów w `src/kaucjomat/**/*.py`."""
     src_dir = get_project_root() / "src" / "kaucjomat"
     all_issues: list[str] = []
 
-    for py_file in sorted(src_dir.glob("*.py")):
+    for py_file in sorted(src_dir.rglob("*.py")):
+        if "__pycache__" in py_file.parts:
+            continue
         source = py_file.read_text(encoding="utf-8")
         tree = ast.parse(source, filename=str(py_file))
         all_issues.extend(_collect_missing_annotations_and_docstrings(py_file, tree))
@@ -163,26 +179,44 @@ def test_docstrings_and_type_annotations_present() -> None:
 
 
 def test_requirements_txt_contains_runtime_dependencies_only() -> None:
-    """Sprawdza aktualność `requirements.txt` (tylko zależności runtime bez pytest i `-e .`)."""
-    req_path = get_project_root() / "requirements.txt"
+    """Sprawdza zgodność `requirements.txt` z `pyproject.toml` i `uv.lock` (bez paczek dev)."""
+    root = get_project_root()
+    req_path = root / "requirements.txt"
+    pyproject_data = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+    lock_data = tomllib.loads((root / "uv.lock").read_text(encoding="utf-8"))
+
     assert req_path.is_file(), "Brak pliku requirements.txt w katalogu głównym."
+    runtime_declared = {
+        _extract_pkg_name(dep)
+        for dep in pyproject_data.get("project", {}).get("dependencies", [])
+    }
+    dev_declared = {
+        _extract_pkg_name(dep)
+        for dep in pyproject_data.get("dependency-groups", {}).get("dev", [])
+    }
+    locked_versions = {
+        pkg["name"].lower().replace("_", "-"): pkg["version"]
+        for pkg in lock_data.get("package", [])
+        if "name" in pkg and "version" in pkg
+    }
 
     lines = [
         line.strip().lower()
         for line in req_path.read_text(encoding="utf-8").splitlines()
         if line.strip() and not line.strip().startswith("#")
     ]
-    joined = "\n".join(lines)
+    assert not any(line.startswith("-e") for line in lines), "Wykryto lokalny wpis `-e` w requirements.txt"
 
-    assert any(line.startswith("fastapi==") or line == "fastapi" for line in lines), (
-        f"Brak fastapi w requirements.txt: {joined}"
-    )
-    assert any(line.startswith("uvicorn==") or line == "uvicorn" for line in lines), (
-        f"Brak uvicorn w requirements.txt: {joined}"
-    )
-    assert not any("pytest" in line for line in lines), (
-        f"Zależność dev pytest nie powinna trafiać do requirements.txt: {joined}"
-    )
-    assert not any(line.startswith("-e") for line in lines), (
-        f"Wpis lokalny `-e .` nie powinien trafiać do requirements.txt: {joined}"
-    )
+    exported_versions: dict[str, str] = {}
+    for line in lines:
+        assert "==" in line, f"Oczekiwano przypiętej wersji '==' w requirements.txt: {line}"
+        name, version = line.split("==", 1)
+        normalized_name = name.strip().replace("_", "-")
+        exported_versions[normalized_name] = version.strip()
+
+    assert runtime_declared <= set(exported_versions), "Brak zależności runtime w requirements.txt"
+    assert not (dev_declared & set(exported_versions)), "Zależności dev trafiły do requirements.txt"
+    for pkg_name, pkg_version in exported_versions.items():
+        assert locked_versions.get(pkg_name) == pkg_version, (
+            f"Rozbieżność wersji {pkg_name}: requirements.txt={pkg_version}, uv.lock={locked_versions.get(pkg_name)}"
+        )

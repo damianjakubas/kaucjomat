@@ -186,3 +186,63 @@ def test_cli_serve_invokes_uvicorn_with_factory(monkeypatch: pytest.MonkeyPatch)
         reload=True,
         factory=True,
     )
+    monkeypatch.delenv("KAUCJOMAT_LOG_LEVEL", raising=False)
+    monkeypatch.delenv("KAUCJOMAT_LOG_FILE", raising=False)
+
+
+def test_create_app_missing_static_dir_raises_domain_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Brak katalogu statycznego w create_app() rzuca InvalidConfigurationError."""
+    from kaucjomat import app as app_module
+    from kaucjomat.exceptions import InvalidConfigurationError
+
+    monkeypatch.setattr(app_module, "get_static_dir", lambda: tmp_path / "brak-static")
+    with pytest.raises(InvalidConfigurationError, match="Brak wymaganych zasobów statycznych"):
+        app_module.create_app()
+
+
+def test_create_app_restores_logging_from_env_vars(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Fabryka create_app() odtwarza konfigurację logowania ze zmiennych środowiskowych --reload."""
+    import logging
+
+    from kaucjomat.app import create_app
+
+    root_logger = get_logger()
+    for existing in list(root_logger.handlers):
+        root_logger.removeHandler(existing)
+        existing.close()
+
+    env_log_file = tmp_path / "spawn" / "reload.log"
+    monkeypatch.setenv("KAUCJOMAT_LOG_LEVEL", "WARNING")
+    monkeypatch.setenv("KAUCJOMAT_LOG_FILE", str(env_log_file))
+
+    try:
+        create_app()
+        assert root_logger.level == logging.WARNING
+        get_logger("reload_test").warning("Wpis z procesu potomnego DEMO")
+        assert env_log_file.exists()
+        assert "Wpis z procesu potomnego DEMO" in env_log_file.read_text(encoding="utf-8")
+    finally:
+        configure_logging(level="INFO")
+
+
+def test_view_id_newline_is_sanitized_in_error_response_and_logs(tmp_path: Path) -> None:
+    """Znaki nowej linii w identyfikatorze widoku są oczyszczane w odpowiedzi HTTP i logach."""
+    log_file = tmp_path / "sanitized.log"
+    configure_logging(level="INFO", log_file=log_file)
+    try:
+        client = _build_client()
+        response = client.get("/api/views/bad%0AINFO:forged")
+
+        assert response.status_code == 400
+        assert "\n" not in response.json()["message"]
+        log_lines = log_file.read_text(encoding="utf-8").splitlines()
+        assert len(log_lines) == 1
+        assert "bad INFO:forged" in log_lines[0]
+    finally:
+        configure_logging(level="INFO")

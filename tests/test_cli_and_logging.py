@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import platform
 import subprocess
 import sys
 from pathlib import Path
@@ -11,7 +13,7 @@ import pytest
 from kaucjomat.cli import build_runtime_info, main
 from kaucjomat.config import resolve_port
 from kaucjomat.exceptions import InvalidConfigurationError
-from kaucjomat.logging_config import configure_logging, get_logger
+from kaucjomat.logging_config import configure_logging, get_logger, sanitize_for_log
 
 
 def test_runtime_info_reports_python_313_and_demo_mode() -> None:
@@ -20,7 +22,8 @@ def test_runtime_info_reports_python_313_and_demo_mode() -> None:
 
     assert info.app_name == "KaucjaSim"
     assert info.mode == "DEMO"
-    assert info.python_version.startswith("3.13")
+    assert sys.version_info >= (3, 13)
+    assert info.python_version == platform.python_version()
     assert info.cpu_count >= 1
     assert [view.id for view in info.views] == ["butelkomat", "kasa", "analityka"]
 
@@ -47,7 +50,7 @@ def test_cli_info_prints_polish_diagnostics_and_views(
 
     assert exit_code == 0
     assert "KaucjaSim (DEMO)" in captured.out
-    assert "Python: 3.13" in captured.out
+    assert f"Python: {platform.python_version()}" in captured.out
     assert "Butelkomat" in captured.out
     assert "Kasa Sklepowa" in captured.out
     assert "Analityka i Benchmark GIL" in captured.out
@@ -111,14 +114,44 @@ def test_configure_logging_invalid_level_raises_domain_error() -> None:
 
 def test_python_module_entrypoint_info() -> None:
     """Uruchomienie przez ``python -m kaucjomat info`` działa poprawnie w podprocesie."""
+    env = os.environ.copy()
+    env["PYTHONUTF8"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
     result = subprocess.run(
         [sys.executable, "-m", "kaucjomat", "info"],
         capture_output=True,
         text=True,
         encoding="utf-8",
+        env=env,
         check=False,
     )
 
     assert result.returncode == 0
     assert "KaucjaSim (DEMO)" in result.stdout
     assert "Liczba rdzeni CPU:" in result.stdout
+
+
+def test_sanitize_for_log_strips_control_chars_and_truncates() -> None:
+    """Funkcja sanitize_for_log usuwa znaki nowej linii i przycina długie wartości."""
+    cleaned = sanitize_for_log("ok\r\nFAKE_LOG\tENTRY", max_length=12)
+
+    assert "\n" not in cleaned
+    assert "\r" not in cleaned
+    assert "\t" not in cleaned
+    assert len(cleaned) == 12
+    assert cleaned.endswith("...")
+
+
+def test_configure_logging_directory_as_log_file_returns_cli_error_code(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Błąd otwarcia pliku logów rzuca InvalidConfigurationError i zwraca kod wyjścia 2 w CLI."""
+    with pytest.raises(InvalidConfigurationError, match="Nie można otworzyć pliku logów"):
+        configure_logging(level="INFO", log_file=tmp_path)
+
+    exit_code = main(["--log-file", str(tmp_path), "info"])
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert "INVALID_CONFIGURATION" in captured.err

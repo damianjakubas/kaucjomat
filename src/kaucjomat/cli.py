@@ -124,7 +124,13 @@ def create_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def run_server(host: str, port: int, reload: bool = False) -> None:
+def run_server(
+    host: str,
+    port: int,
+    reload: bool = False,
+    log_level: str | None = None,
+    log_file: Path | None = None,
+) -> None:
     """Uruchamia serwer Uvicorn wskazując fabrykę aplikacji w trybie bezpiecznym dla spawn."""
     if importlib.util.find_spec("kaucjomat.app") is None:
         raise KaucjomatError(
@@ -132,6 +138,12 @@ def run_server(host: str, port: int, reload: bool = False) -> None:
             error_code="APP_NOT_AVAILABLE",
             status_code=500,
         )
+
+    # Przekazujemy ustawienia loggera przez zmienne środowiskowe dla procesu potomnego --reload.
+    if log_level:
+        os.environ["KAUCJOMAT_LOG_LEVEL"] = log_level
+    if log_file is not None:
+        os.environ["KAUCJOMAT_LOG_FILE"] = str(log_file)
 
     import uvicorn
 
@@ -177,7 +189,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                 port,
                 args.reload,
             )
-            run_server(host=args.host, port=port, reload=args.reload)
+            run_server(
+                host=args.host,
+                port=port,
+                reload=args.reload,
+                log_level=args.log_level,
+                log_file=args.log_file,
+            )
             return 0
     except KaucjomatError as exc:
         root_logger = get_logger()

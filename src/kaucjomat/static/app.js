@@ -5,6 +5,7 @@
 
 const VALID_VIEW_IDS = ["butelkomat", "kasa", "analityka"];
 const DEFAULT_VIEW_ID = "butelkomat";
+const errorMessagesBySource = { health: "", view: "" };
 
 /**
  * Normalizuje identyfikator widoku (np. z hasha URL) do jednej z 3 obsługiwanych zakładek.
@@ -17,24 +18,46 @@ function resolveViewId(rawViewId) {
 }
 
 /**
- * Wyświetla lub ukrywa czytelny baner błędu komunikacji z lokalnym API DEMO.
- * @param {string} message - Treść błędu po polsku; pusty napis ukrywa baner.
+ * Bezpiecznie parsuje odpowiedź JSON, zwracając null przy treściach niebędących JSON-em.
+ * @param {Response} response - Obiekt odpowiedzi z funkcji fetch.
+ * @returns {Promise<object|null>} Sparsowany obiekt JSON lub null w razie błędu formatu.
+ */
+async function readJsonSafely(response) {
+  const contentType = (response.headers.get("content-type") || "").toLowerCase();
+  if (!contentType.includes("application/json")) {
+    return null;
+  }
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Wyświetla lub ukrywa baner błędu komunikacji z API z rozdzieleniem źródeł (health/view).
+ * @param {string} message - Treść błędu po polsku; pusty napis czyści dane źródło.
+ * @param {"health"|"view"} [source="view"] - Nazwa źródła zgłaszającego komunikat.
  * @returns {void}
  */
-function renderErrorBanner(message) {
+function renderErrorBanner(message, source = "view") {
   const banner = document.getElementById("error-banner");
   const messageNode = document.getElementById("error-banner-message");
   if (!banner || !messageNode) {
     return;
   }
 
-  if (!message) {
+  const key = source === "health" ? "health" : "view";
+  errorMessagesBySource[key] = message ? String(message) : "";
+
+  const activeMessages = [errorMessagesBySource.health, errorMessagesBySource.view].filter(Boolean);
+  if (activeMessages.length === 0) {
     banner.hidden = true;
     messageNode.textContent = "";
     return;
   }
 
-  messageNode.textContent = message;
+  messageNode.textContent = activeMessages.join(" | ");
   banner.hidden = false;
 }
 
@@ -44,26 +67,33 @@ function renderErrorBanner(message) {
  * @returns {Promise<void>} Obietnica kończąca się po zaktualizowaniu metadanych widoku lub banera błędu.
  */
 async function fetchViewMetadata(viewId) {
+  const safeViewId = resolveViewId(viewId);
   try {
-    const response = await fetch(`/api/views/${encodeURIComponent(viewId)}`, {
+    const response = await fetch(`/api/views/${encodeURIComponent(safeViewId)}`, {
       headers: { Accept: "application/json" },
     });
-    const payload = await response.json();
+    const payload = await readJsonSafely(response);
 
     if (!response.ok) {
       const errorText = payload && payload.message
         ? `${payload.message} (${payload.error_code || response.status})`
-        : `Nie udało się pobrać danych widoku (${response.status}).`;
-      renderErrorBanner(errorText);
+        : `Nie udało się pobrać danych widoku (HTTP ${response.status}).`;
+      renderErrorBanner(errorText, "view");
       return;
     }
 
-    // Czyścimy poprzedni błąd po poprawnym odświeżeniu danych z backendu.
-    renderErrorBanner("");
+    // Czyścimy wyłącznie błąd widoku, aby nie ukryć ewentualnej awarii /api/health.
+    renderErrorBanner("", "view");
+    if (!payload) {
+      return;
+    }
 
-    const titleNode = document.querySelector(`[data-view-title="${viewId}"]`);
-    const descNode = document.querySelector(`[data-view-description="${viewId}"]`);
-    const scopeNode = document.querySelector(`[data-view-scope="${viewId}"]`);
+    const escapedId = typeof CSS !== "undefined" && typeof CSS.escape === "function"
+      ? CSS.escape(safeViewId)
+      : safeViewId;
+    const titleNode = document.querySelector(`[data-view-title="${escapedId}"]`);
+    const descNode = document.querySelector(`[data-view-description="${escapedId}"]`);
+    const scopeNode = document.querySelector(`[data-view-scope="${escapedId}"]`);
 
     if (titleNode && payload.title) {
       titleNode.textContent = payload.title;
@@ -76,7 +106,7 @@ async function fetchViewMetadata(viewId) {
     }
   } catch (error) {
     const details = error instanceof Error ? error.message : String(error);
-    renderErrorBanner(`Brak połączenia z lokalnym API DEMO: ${details}`);
+    renderErrorBanner(`Brak połączenia z lokalnym API DEMO: ${details}`, "view");
   }
 }
 
@@ -130,19 +160,25 @@ async function refreshHealthStatus() {
     const response = await fetch("/api/health", {
       headers: { Accept: "application/json" },
     });
-    if (!response.ok) {
+    const health = await readJsonSafely(response);
+    if (!response.ok || !health) {
       throw new Error(`HTTP ${response.status}`);
     }
 
-    const health = await response.json();
+    renderErrorBanner("", "health");
     if (pill) {
       pill.classList.remove("is-error");
     }
     if (textNode) {
-      textNode.textContent = `Backend lokalny: OK · Tryb ${health.mode} (${health.views_count} widoki)`;
+      const modeLabel = health.mode || "DEMO";
+      const viewsCount = Number.isInteger(health.views_count) ? health.views_count : 3;
+      textNode.textContent = `Backend lokalny: OK · Tryb ${modeLabel} (${viewsCount} widoki)`;
     }
     if (summaryNode) {
-      summaryNode.textContent = `${health.app_name} v${health.version} · Tryb ${health.mode}`;
+      const appName = health.app_name || "KaucjaSim";
+      const version = health.version || "0.1.0";
+      const modeLabel = health.mode || "DEMO";
+      summaryNode.textContent = `${appName} v${version} · Tryb ${modeLabel}`;
     }
   } catch (error) {
     const details = error instanceof Error ? error.message : String(error);
@@ -152,7 +188,7 @@ async function refreshHealthStatus() {
     if (textNode) {
       textNode.textContent = "Backend lokalny: niedostępny";
     }
-    renderErrorBanner(`Nie udało się odczytać /api/health: ${details}`);
+    renderErrorBanner(`Nie udało się odczytać /api/health: ${details}`, "health");
   }
 }
 

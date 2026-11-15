@@ -1,6 +1,8 @@
 """Fabryka aplikacji FastAPI, trasy API oraz handlery wyjątków dla KaucjaSim DEMO."""
 
+import os
 import string
+from pathlib import Path
 from typing import cast, Literal
 
 from fastapi import FastAPI, Request
@@ -20,7 +22,7 @@ from kaucjomat.config import (
     get_static_dir,
 )
 from kaucjomat.exceptions import InvalidConfigurationError, KaucjomatError, ViewNotFoundError
-from kaucjomat.logging_config import configure_logging, get_logger
+from kaucjomat.logging_config import configure_logging, get_logger, sanitize_for_log
 from kaucjomat.schemas import ErrorResponse, HealthResponse, ViewSchema, ViewsListResponse
 
 _ALLOWED_VIEW_ID_CHARS: frozenset[str] = frozenset(string.ascii_lowercase + string.digits + "-")
@@ -46,15 +48,16 @@ def get_view_or_raise(view_id: str) -> ViewSchema:
     # Jawna walidacja znaków ASCII bez wyrażeń regularnych zachowuje rozdział zakresów etapów.
     has_valid_length = _MIN_VIEW_ID_LENGTH <= len(view_id) <= _MAX_VIEW_ID_LENGTH
     has_valid_chars = all(char in _ALLOWED_VIEW_ID_CHARS for char in view_id)
+    safe_view_id = sanitize_for_log(view_id)
     if not (has_valid_length and has_valid_chars):
         raise InvalidConfigurationError(
             "Nieprawidłowy identyfikator widoku: "
-            f"'{view_id}'. Dozwolone są małe litery ASCII, cyfry i myślnik (2-32 znaki)."
+            f"'{safe_view_id}'. Dozwolone są małe litery ASCII, cyfry i myślnik (2-32 znaki)."
         )
 
     view = VIEWS_BY_ID.get(view_id)
     if view is None:
-        raise ViewNotFoundError(f"Nie znaleziono widoku o identyfikatorze '{view_id}'.")
+        raise ViewNotFoundError(f"Nie znaleziono widoku o identyfikatorze '{safe_view_id}'.")
 
     return _to_view_schema(view)
 
@@ -71,9 +74,14 @@ def _format_validation_errors(exc: RequestValidationError) -> str | None:
 
 def create_app() -> FastAPI:
     """Tworzy i konfiguruje instancję aplikacji FastAPI bez efektów ubocznych przy imporcie."""
-    # Uruchomienie przez uvicorn --factory bez CLI może nie mieć jeszcze skonfigurowanych handlerów.
+    # Uruchomienie przez uvicorn --factory (także proces potomny --reload) odtwarza konfigurację ze środowiska.
     if not get_logger().handlers:
-        configure_logging()
+        env_level = os.getenv("KAUCJOMAT_LOG_LEVEL", "INFO")
+        env_log_file = os.getenv("KAUCJOMAT_LOG_FILE")
+        configure_logging(
+            level=env_level,
+            log_file=Path(env_log_file) if env_log_file else None,
+        )
 
     logger = get_logger("app")
     app = FastAPI(
@@ -89,8 +97,8 @@ def create_app() -> FastAPI:
             "Błąd domenowy HTTP %s [%s] na %s: %s",
             exc.status_code,
             exc.error_code,
-            request.url.path,
-            exc.message,
+            sanitize_for_log(request.url.path, max_length=128),
+            sanitize_for_log(exc.message, max_length=200),
         )
         payload = ErrorResponse(
             error_code=exc.error_code,
@@ -109,8 +117,8 @@ def create_app() -> FastAPI:
         detail = _format_validation_errors(exc)
         logger.warning(
             "Błąd walidacji żądania HTTP 422 na %s: %s",
-            request.url.path,
-            detail or "brak szczegółów",
+            sanitize_for_log(request.url.path, max_length=128),
+            sanitize_for_log(detail, max_length=200) if detail else "brak szczegółów",
         )
         payload = ErrorResponse(
             error_code="VALIDATION_ERROR",
@@ -121,12 +129,17 @@ def create_app() -> FastAPI:
         return JSONResponse(status_code=422, content=payload.model_dump())
 
     static_dir = get_static_dir()
+    index_file = static_dir / "index.html"
+    if not static_dir.is_dir() or not index_file.is_file():
+        raise InvalidConfigurationError(
+            f"Brak wymaganych zasobów statycznych powłoki DEMO w katalogu: '{static_dir}'."
+        )
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
     @app.get("/", include_in_schema=False)
     def read_index() -> FileResponse:
         """Serwuje główny dokument HTML lokalnej powłoki KaucjaSim DEMO."""
-        return FileResponse(static_dir / "index.html", media_type="text/html")
+        return FileResponse(index_file, media_type="text/html")
 
     @app.get("/api/health", response_model=HealthResponse, tags=["system"])
     def read_health() -> HealthResponse:

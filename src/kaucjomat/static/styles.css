@@ -18,9 +18,7 @@
   --shadow-card: 0 8px 24px rgba(19, 34, 26, 0.08);
 }
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 body {
   margin: 0;
@@ -30,11 +28,7 @@ body {
   line-height: 1.5;
 }
 
-.app-shell {
-  max-width: 1040px;
-  margin: 0 auto;
-  padding: 24px 16px 40px;
-}
+.app-shell { max-width: 1040px; margin: 0 auto; padding: 24px 16px 40px; }
 
 .app-header {
   background: var(--bg-card);
@@ -64,16 +58,8 @@ body {
   letter-spacing: 0.04em;
 }
 
-.app-title {
-  margin: 10px 0 4px;
-  font-size: 1.75rem;
-}
-
-.app-subtitle {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: 0.95rem;
-}
+.app-title { margin: 10px 0 4px; font-size: 1.75rem; }
+.app-subtitle { margin: 0; color: var(--text-muted); font-size: 0.95rem; }
 
 .health-pill {
   display: inline-flex;
@@ -94,9 +80,7 @@ body {
   background: var(--accent-primary);
 }
 
-.health-pill.is-error .health-dot {
-  background: var(--error-border);
-}
+.health-pill.is-error .health-dot { background: var(--error-border); }
 
 /* Nawigacja 3 widoków powłoki */
 .view-switcher {
@@ -121,9 +105,7 @@ body {
   transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 
-.view-tab:hover {
-  border-color: var(--accent-primary);
-}
+.view-tab:hover { border-color: var(--accent-primary); }
 
 .view-tab.is-active,
 .view-tab[aria-selected="true"] {
@@ -142,9 +124,7 @@ body {
   color: var(--error-text);
 }
 
-.shell-main {
-  margin-top: 18px;
-}
+.shell-main { margin-top: 18px; }
 
 .view-panel {
   background: var(--bg-card);
@@ -174,16 +154,8 @@ body {
   font-weight: 700;
 }
 
-.panel-latency {
-  color: var(--text-muted);
-  font-size: 0.82rem;
-}
-
-.panel-description {
-  margin: 0 0 16px;
-  font-size: 1rem;
-  color: var(--text-muted);
-}
+.panel-latency { color: var(--text-muted); font-size: 0.82rem; }
+.panel-description { margin: 0 0 16px; font-size: 1rem; color: var(--text-muted); }
 
 .pos-demo-banner {
   margin: 0 0 16px;
@@ -208,16 +180,8 @@ body {
   border: 1px solid var(--border-soft);
 }
 
-.info-card h3 {
-  margin: 0 0 8px;
-  font-size: 1rem;
-}
-
-.info-card p {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: 0.92rem;
-}
+.info-card h3 { margin: 0 0 8px; font-size: 1rem; }
+.info-card p { margin: 0; color: var(--text-muted); font-size: 0.92rem; }
 
 .app-footer {
   margin-top: 18px;

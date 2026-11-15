@@ -11,6 +11,7 @@ import uuid
 
 from kaucjomat.exceptions import (
     EmptyReturnSessionError,
+    InvalidConfigurationError,
     InvalidDepositRequestError,
     ReturnStateStorageError,
     SessionVoucherConflictError,
@@ -146,7 +147,7 @@ class ReturnStateStore:
                         self._logger.info(
                             "Idempotentne ponowienie wystawienia bonu DEMO dla sesji %s (%s).",
                             sanitize_for_log(normalized_session_id),
-                            matching_voucher.voucher_code,
+                            sanitize_for_log(matching_voucher.voucher_code),
                         )
                         return (
                             matching_voucher,
@@ -208,7 +209,14 @@ class ReturnStateStore:
             parsed = json.loads(raw_text)
             validated, parsed_attempts, parsed_vouchers, migrated = validate_state_payload(parsed)
             return validated, parsed_attempts, parsed_vouchers, migrated
-        except (OSError, json.JSONDecodeError, ValueError, TypeError, KeyError) as exc:
+        except (
+            OSError,
+            json.JSONDecodeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            InvalidConfigurationError,
+        ) as exc:
             self._logger.error(
                 "Nie udało się wczytać pliku stanu zwrotów DEMO.",
                 exc_info=True,

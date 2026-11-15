@@ -45,6 +45,17 @@ def require_bool(raw: dict[str, Any], key: str) -> bool:
     return value
 
 
+def require_utc_iso(value: str, key: str) -> str:
+    """Waliduje tekstowy znacznik czasu ISO-8601 z jawną strefą czasową UTC."""
+    cleaned = value.strip()
+    if not cleaned:
+        raise ValueError(f"Pole {key} nie może być pustym znacznikiem czasu.")
+    parsed = datetime.fromisoformat(cleaned)
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError(f"Pole {key} musi zawierać strefę czasową UTC.")
+    return value
+
+
 def voucher_record_to_dict(record: VoucherRecord) -> dict[str, Any]:
     """Serializuje rekord bonu DEMO do słownika gotowego do zapisu w pliku JSON."""
     return {
@@ -70,9 +81,12 @@ def voucher_dict_to_record(
     stored_status = VoucherStatus(require_str(raw, "status", non_empty=True))
     issued_at_iso = require_str(raw, "issued_at_iso", non_empty=True)
     expires_at_iso = require_str(raw, "expires_at_iso", non_empty=True)
-    # Walidujemy format ISO daty wystawienia, aby wcześnie wykryć uszkodzony rekord JSON.
-    datetime.fromisoformat(issued_at_iso)
+    # Walidujemy format ISO i strefę UTC znaczników czasu, aby wcześnie wykryć uszkodzony rekord JSON.
+    require_utc_iso(issued_at_iso, "issued_at_iso")
     effective_status = resolve_voucher_status(stored_status, expires_at_iso, now=now)
+    redeemed_at_iso = require_optional_str(raw, "redeemed_at_iso")
+    if redeemed_at_iso is not None:
+        require_utc_iso(redeemed_at_iso, "redeemed_at_iso")
 
     return VoucherRecord(
         voucher_code=require_str(raw, "voucher_code", non_empty=True),
@@ -83,6 +97,6 @@ def voucher_dict_to_record(
         issued_at_iso=issued_at_iso,
         expires_at_iso=expires_at_iso,
         status=effective_status,
-        redeemed_at_iso=require_optional_str(raw, "redeemed_at_iso"),
+        redeemed_at_iso=redeemed_at_iso,
         is_test_seed=require_bool(raw, "is_test_seed"),
     )

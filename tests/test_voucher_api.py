@@ -207,3 +207,31 @@ def test_concurrent_issue_voucher_creates_exactly_one_voucher(
     assert len(all_vouchers) == 2
     assert all_vouchers[0].source_session_id == target_session_id
     assert all_vouchers[1].voucher_code == "BON-DEMO-EXP-0001"
+
+
+@pytest.mark.parametrize(
+    ("field_name", "bad_value"),
+    [
+        ("expires_at_iso", "not-an-iso-date"),
+        ("expires_at_iso", "2026-04-12T10:00:00"),
+        ("issued_at_iso", "2026-01-02T10:00:00"),
+        ("redeemed_at_iso", "invalid-redeemed-ts"),
+    ],
+)
+def test_corrupted_voucher_timestamp_returns_storage_error_500(
+    tmp_path: Path,
+    field_name: str,
+    bad_value: str,
+) -> None:
+    """Uszkodzony lub pozbawiony strefy czasowej timestamp bonu w pliku stanu daje HTTP 500."""
+    state_file = tmp_path / "corrupt_voucher.json"
+    client = _make_client(state_file)
+    assert client.get("/api/returns/vouchers").status_code == 200
+
+    raw_state = json.loads(state_file.read_text(encoding="utf-8"))
+    raw_state["vouchers"][0][field_name] = bad_value
+    state_file.write_text(json.dumps(raw_state), encoding="utf-8")
+
+    response = client.get("/api/returns/vouchers")
+    assert response.status_code == 500
+    assert response.json()["error_code"] == "RETURN_STATE_STORAGE_ERROR"

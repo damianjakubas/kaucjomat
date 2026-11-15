@@ -4,6 +4,7 @@
  */
 
 let isReturnRequestInFlight = false;
+let stateMutationEpoch = 0;
 
 /**
  * Zgłasza lub czyści komunikat błędu dla wskazanego źródła we wspólnym banerze powłoki.
@@ -81,8 +82,11 @@ async function loadReturnCards() {
  */
 async function loadReturnSession() {
   if (!window.KaucjomatReturnView) return;
+  const startEpoch = stateMutationEpoch;
   try {
     const session = await fetchReturnJson("/api/returns/session");
+    // Odrzucamy spóźnioną odpowiedź startową, jeśli użytkownik zdążył już zmutować stan.
+    if (startEpoch !== stateMutationEpoch) return;
     window.KaucjomatReturnView.renderSessionState(session);
     // Najnowsza próba z historii znajduje się pod indeksem 0 (posortowane malejąco od ostatniej).
     if (Array.isArray(session.attempts) && session.attempts.length > 0) {
@@ -105,6 +109,7 @@ async function loadReturnSession() {
  */
 async function submitPackageDeposit(cardId) {
   if (isReturnRequestInFlight || !window.KaucjomatReturnView) return;
+  stateMutationEpoch += 1;
   setMachineControlsBusy(true);
   const startTime = performance.now();
   try {
@@ -133,8 +138,10 @@ async function submitPackageDeposit(cardId) {
  */
 async function loadLatestIssuedVoucher() {
   if (!window.KaucjomatReturnView) return;
+  const startEpoch = stateMutationEpoch;
   try {
     const payload = await fetchReturnJson("/api/returns/vouchers");
+    if (startEpoch !== stateMutationEpoch) return;
     const vouchers = Array.isArray(payload.vouchers) ? payload.vouchers : [];
     const latestUserVoucher = vouchers.find((item) => item && item.is_test_seed === false) || null;
     window.KaucjomatReturnView.renderIssuedVoucher(latestUserVoucher);
@@ -153,6 +160,7 @@ async function loadLatestIssuedVoucher() {
  */
 async function issueSessionVoucher() {
   if (isReturnRequestInFlight || !window.KaucjomatReturnView) return;
+  stateMutationEpoch += 1;
   const issueBtn = document.getElementById("issue-voucher-btn");
   const currentSessionId = issueBtn ? issueBtn.dataset.sessionId || "" : "";
   setMachineControlsBusy(true);
@@ -188,6 +196,7 @@ async function issueSessionVoucher() {
  */
 async function resetReturnDemoState() {
   if (isReturnRequestInFlight || !window.KaucjomatReturnView) return;
+  stateMutationEpoch += 1;
   setMachineControlsBusy(true);
   try {
     const payload = await fetchReturnJson("/api/returns/reset", { method: "POST" });

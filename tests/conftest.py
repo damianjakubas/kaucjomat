@@ -10,7 +10,9 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
+from fastapi.testclient import TestClient
 
+from kaucjomat.app import create_app
 from kaucjomat.return_store import ReturnStateStore
 from kaucjomat.logging_config import get_logger
 from kaucjomat.test_cards import get_test_card_by_id
@@ -43,6 +45,13 @@ def checkout_request(checkout_store: ReturnStateStore) -> dict[str, Any]:
         "redemption_mode": "purchases",
         "items": [{"product_id": "bread-roll", "quantity": 2}],
     }
+
+
+@pytest.fixture
+def checkout_client(checkout_file: Path) -> Iterator[TestClient]:
+    """Uruchamia aplikację z jednym magazynem w odizolowanym pliku danego testu."""
+    with TestClient(create_app(state_file=checkout_file)) as client:
+        yield client
 
 
 @pytest.fixture

@@ -105,9 +105,9 @@ def test_normalized_uuid_code_and_item_order_identify_same_operation(
 
 
 @pytest.mark.parametrize(("field", "value", "code"), [
-    ("voucher_code", "BON-DEMO-INNY", "REDEMPTION_OPERATION_CONFLICT"),
-    ("redemption_mode", "cash", "REDEMPTION_OPERATION_CONFLICT"),
-    ("items", [{"product_id": "bread-roll", "quantity": 3}], "REDEMPTION_OPERATION_CONFLICT"),
+    ("voucher_code", "BON-DEMO-INNY", "CHECKOUT_OPERATION_CONFLICT"),
+    ("redemption_mode", "cash", "CHECKOUT_OPERATION_CONFLICT"),
+    ("items", [{"product_id": "bread-roll", "quantity": 3}], "CHECKOUT_OPERATION_CONFLICT"),
     ("operation_id", str(uuid4()), "VOUCHER_ALREADY_REDEEMED"),
     ("demo_generation_id", str(uuid4()), "DEMO_GENERATION_CONFLICT"),
 ])

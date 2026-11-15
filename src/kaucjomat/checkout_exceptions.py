@@ -41,7 +41,7 @@ class VoucherNotFoundError(KaucjomatError):
 class RedemptionOperationConflictError(KaucjomatError):
     """Blokuje użycie identyfikatora zakończonej operacji z inną treścią."""
 
-    error_code: str = "REDEMPTION_OPERATION_CONFLICT"
+    error_code: str = "CHECKOUT_OPERATION_CONFLICT"
     status_code: int = 409
 
 

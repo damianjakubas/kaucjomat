@@ -91,7 +91,7 @@ def test_same_id_with_competing_payloads_returns_conflicts(
     successes = [r for r in results if isinstance(r, tuple)]
     assert len(successes) == 4 and len({r[0] for r in successes}) == 1
     assert [r[1] for r in successes].count(False) == 1
-    assert results.count("REDEMPTION_OPERATION_CONFLICT") == 4
+    assert results.count("CHECKOUT_OPERATION_CONFLICT") == 4
     assert len(json.loads(checkout_file.read_bytes())["checkout_redemptions"]) == 1
 
 

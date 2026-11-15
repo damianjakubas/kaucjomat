@@ -20,15 +20,13 @@ from kaucjomat.return_schemas import (
     TestCardSchema,
     TestCardsListResponse,
 )
-from kaucjomat.return_store import ReturnSessionSnapshot, ReturnStateStore, VoucherRecord
+from kaucjomat.return_store import ReturnSessionSnapshot, ReturnStateStore
 from kaucjomat.test_cards import TestPackageCard, get_test_card_by_id, get_test_cards
-from kaucjomat.voucher_domain import VOUCHER_VALIDITY_DAYS
 from kaucjomat.voucher_schemas import (
-    DEFAULT_DEMO_WATERMARK,
     IssueVoucherRequest,
     IssueVoucherResponse,
-    VoucherSchema,
     VouchersListResponse,
+    to_voucher_schema,
 )
 
 
@@ -107,25 +105,6 @@ def _to_session_schema(snapshot: ReturnSessionSnapshot) -> ReturnSessionSchema:
     )
 
 
-def _to_voucher_schema(voucher: VoucherRecord) -> VoucherSchema:
-    """Konwertuje domenowy rekord bonu DEMO na model odpowiedzi HTTP."""
-    return VoucherSchema(
-        mode="DEMO",
-        voucher_code=voucher.voucher_code,
-        source_session_id=voucher.source_session_id,
-        amount_grosze=voucher.amount_grosze,
-        amount_formatted=voucher.amount_formatted,
-        accepted_count=voucher.accepted_count,
-        issued_at_iso=voucher.issued_at_iso,
-        expires_at_iso=voucher.expires_at_iso,
-        validity_days=VOUCHER_VALIDITY_DAYS,
-        status=voucher.status,
-        redeemed_at_iso=voucher.redeemed_at_iso,
-        is_test_seed=voucher.is_test_seed,
-        demo_watermark=DEFAULT_DEMO_WATERMARK,
-    )
-
-
 def _resolve_candidate_from_request(
     payload: DepositRequest,
 ) -> tuple[PackageCandidate, str | None]:
@@ -197,7 +176,7 @@ def create_return_router(store: ReturnStateStore) -> APIRouter:
         vouchers = store.list_vouchers()
         return VouchersListResponse(
             mode="DEMO",
-            vouchers=[_to_voucher_schema(voucher) for voucher in vouchers],
+            vouchers=[to_voucher_schema(voucher) for voucher in vouchers],
         )
 
     @router.post("/voucher", response_model=IssueVoucherResponse)
@@ -218,7 +197,7 @@ def create_return_router(store: ReturnStateStore) -> APIRouter:
             mode="DEMO",
             message=message,
             was_idempotent_replay=was_replayed,
-            voucher=_to_voucher_schema(voucher),
+            voucher=to_voucher_schema(voucher),
             session=_to_session_schema(snapshot),
         )
 
@@ -229,7 +208,7 @@ def create_return_router(store: ReturnStateStore) -> APIRouter:
         return ResetStateResponse(
             mode="DEMO",
             message=(
-                "Wyczyszczono rejestr zwróconych ID, sesję oraz bony użytkownika i "
+                "Wyczyszczono rejestr zwróconych ID, sesję, bony użytkownika i wyniki realizacji oraz "
                 "przywrócono testowy bon wygasły DEMO."
             ),
             session=_to_session_schema(snapshot),

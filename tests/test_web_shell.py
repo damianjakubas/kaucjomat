@@ -58,8 +58,13 @@ def test_root_serves_offline_demo_shell_with_three_views() -> None:
         'id="package-cards-shelf"',
         'id="reset-demo-btn"',
         'id="scanner-result-box"',
+        'id="issue-voucher-btn"',
+        'id="issued-voucher-card"',
+        'id="print-voucher-btn"',
+        "BON-DEMO-EXP-0001",
         "/static/styles.css",
         "/static/return_machine.css",
+        "/static/voucher_print.css",
         "/static/app.js",
         "/static/return_machine_view.js",
         "/static/return_machine.js",
@@ -88,6 +93,13 @@ def test_static_assets_served_with_expected_content() -> None:
     assert ".package-cards-shelf" in machine_css_response.text
     _assert_no_external_urls(machine_css_response.text, "return_machine.css")
 
+    voucher_css_response = client.get("/static/voucher_print.css")
+    assert voucher_css_response.status_code == 200
+    assert "text/css" in voucher_css_response.headers["content-type"]
+    assert "@media print" in voucher_css_response.text
+    assert "#issued-voucher-card" in voucher_css_response.text
+    _assert_no_external_urls(voucher_css_response.text, "voucher_print.css")
+
     js_response = client.get("/static/app.js")
     assert js_response.status_code == 200
     assert "javascript" in js_response.headers["content-type"]
@@ -100,7 +112,12 @@ def test_static_assets_served_with_expected_content() -> None:
     assert machine_view_js_response.status_code == 200
     assert "javascript" in machine_view_js_response.headers["content-type"]
     assert "/**" in machine_view_js_response.text
-    for fn_name in ("renderScannerDecision", "renderSessionState", "buildPackageCardElement"):
+    for fn_name in (
+        "renderScannerDecision",
+        "renderSessionState",
+        "renderIssuedVoucher",
+        "buildPackageCardElement",
+    ):
         assert fn_name in machine_view_js_response.text, f"Brak funkcji {fn_name} w return_machine_view.js"
     _assert_no_external_urls(machine_view_js_response.text, "return_machine_view.js")
 
@@ -111,6 +128,8 @@ def test_static_assets_served_with_expected_content() -> None:
     for fn_name in (
         "loadReturnCards",
         "loadReturnSession",
+        "loadLatestIssuedVoucher",
+        "issueSessionVoucher",
         "submitPackageDeposit",
         "resetReturnDemoState",
         "initReturnMachine",

@@ -9,8 +9,14 @@ import threading
 from typing import Any
 import uuid
 
-from kaucjomat.exceptions import ReturnStateStorageError
-from kaucjomat.logging_config import get_logger
+from kaucjomat.exceptions import (
+    EmptyReturnSessionError,
+    InvalidConfigurationError,
+    InvalidDepositRequestError,
+    ReturnStateStorageError,
+    SessionVoucherConflictError,
+)
+from kaucjomat.logging_config import get_logger, sanitize_for_log
 from kaucjomat.return_domain import (
     DecisionStatus,
     DepositDecision,
@@ -23,11 +29,23 @@ from kaucjomat.return_state_codec import (
     attempt_dict_to_record,
     build_session_snapshot,
     create_empty_state,
+    create_open_session_dict,
     decision_to_attempt_dict,
     validate_state_payload,
 )
+from kaucjomat.voucher_domain import (
+    VoucherRecord,
+    create_expired_test_voucher,
+    create_issued_voucher,
+)
+from kaucjomat.voucher_state_codec import voucher_record_to_dict
 
-__all__ = ["ReturnSessionSnapshot", "ReturnStateStore", "SessionAttemptRecord"]
+__all__ = [
+    "ReturnSessionSnapshot",
+    "ReturnStateStore",
+    "SessionAttemptRecord",
+    "VoucherRecord",
+]
 
 
 class ReturnStateStore:
@@ -42,11 +60,19 @@ class ReturnStateStore:
     def get_session_snapshot(self) -> ReturnSessionSnapshot:
         """Bezpiecznie wątkowo wczytuje lub inicjalizuje stan i zwraca migawkę sesji."""
         with self._lock:
-            state, parsed_attempts, initialized = self._load_state()
-            # Zapis początkowego stanu zapewnia niezmienny identyfikator sesji od pierwszego odczytu.
-            if initialized:
+            state, parsed_attempts, _, needs_save = self._load_state()
+            # Zapis przy inicjalizacji lub migracji zapewnia spójny identyfikator i listę bonów.
+            if needs_save:
                 self._save_state(state)
             return build_session_snapshot(state, parsed_attempts)
+
+    def list_vouchers(self) -> tuple[VoucherRecord, ...]:
+        """Zwraca listę wszystkich bonów DEMO z aktualizacją statusu i ewentualną migracją."""
+        with self._lock:
+            state, _, parsed_vouchers, needs_save = self._load_state()
+            if needs_save:
+                self._save_state(state)
+            return parsed_vouchers
 
     def process_deposit(
         self,
@@ -55,7 +81,7 @@ class ReturnStateStore:
     ) -> tuple[DepositDecision, ReturnSessionSnapshot]:
         """Ocenia wrzut opakowania, aktualizuje stan pod blokadą i zapisuje plik JSON."""
         with self._lock:
-            state, parsed_attempts, _ = self._load_state()
+            state, parsed_attempts, _, _ = self._load_state()
             returned_ids: set[str] = set(state["returned_instance_ids"])
             decision = evaluate_package_return(candidate, returned_ids)
 
@@ -88,6 +114,78 @@ class ReturnStateStore:
             snapshot = build_session_snapshot(state, (new_record, *parsed_attempts))
             return decision, snapshot
 
+    def issue_voucher(
+        self,
+        expected_session_id: str | None = None,
+    ) -> tuple[VoucherRecord, ReturnSessionSnapshot, bool]:
+        """Zamyka aktywną sesję z dodatnim saldem, wystawia bon DEMO i otwiera nową sesję."""
+        with self._lock:
+            state, parsed_attempts, parsed_vouchers, needs_save = self._load_state()
+            if needs_save:
+                self._save_state(state)
+
+            session = state["session"]
+            current_session_id = str(session["session_id"])
+
+            if expected_session_id is not None:
+                normalized_session_id = expected_session_id.strip()
+                if not normalized_session_id:
+                    raise InvalidDepositRequestError(
+                        "Identyfikator sesji (session_id) nie może być pusty."
+                    )
+                if normalized_session_id != current_session_id:
+                    matching_voucher = next(
+                        (
+                            voucher
+                            for voucher in parsed_vouchers
+                            if voucher.source_session_id == normalized_session_id
+                            and not voucher.is_test_seed
+                        ),
+                        None,
+                    )
+                    if matching_voucher is not None:
+                        self._logger.info(
+                            "Idempotentne ponowienie wystawienia bonu DEMO dla sesji %s (%s).",
+                            sanitize_for_log(normalized_session_id),
+                            sanitize_for_log(matching_voucher.voucher_code),
+                        )
+                        return (
+                            matching_voucher,
+                            build_session_snapshot(state, parsed_attempts),
+                            True,
+                        )
+                    raise SessionVoucherConflictError(
+                        f"Sesja '{sanitize_for_log(normalized_session_id)}' nie jest aktywna i nie ma wystawionego bonu DEMO."
+                    )
+
+            total_grosze = int(session["total_grosze"])
+            if total_grosze <= 0:
+                raise EmptyReturnSessionError(
+                    "Nie można wystawić bonu DEMO dla sesji o kwocie 0,00 zł — wrzuć co najmniej jedno akceptowane opakowanie PET lub puszkę."
+                )
+
+            sequence_no = (
+                sum(1 for item in state["vouchers"] if not item.get("is_test_seed", False)) + 1
+            )
+            voucher = create_issued_voucher(
+                sequence_no=sequence_no,
+                source_session_id=current_session_id,
+                amount_grosze=total_grosze,
+                accepted_count=int(session["accepted_count"]),
+            )
+            state["vouchers"].insert(0, voucher_record_to_dict(voucher))
+            # Zastępujemy wyłącznie aktywną sesję; returned_instance_ids pozostaje nienaruszone.
+            state["session"] = create_open_session_dict()
+            self._save_state(state)
+            self._logger.info(
+                "Wystawiono bon DEMO %s dla sesji %s na kwotę %s (nowa sesja: %s).",
+                voucher.voucher_code,
+                sanitize_for_log(voucher.source_session_id),
+                voucher.amount_formatted,
+                state["session"]["session_id"],
+            )
+            return voucher, build_session_snapshot(state, ()), False
+
     def reset_demo_state(self) -> ReturnSessionSnapshot:
         """Czyści trwały rejestr zwróconych ID oraz rozpoczyna nową czystą sesję DEMO."""
         with self._lock:
@@ -99,17 +197,26 @@ class ReturnStateStore:
             )
             return build_session_snapshot(state, ())
 
-    def _load_state(self) -> tuple[dict[str, Any], tuple[SessionAttemptRecord, ...], bool]:
+    def _load_state(
+        self,
+    ) -> tuple[dict[str, Any], tuple[SessionAttemptRecord, ...], tuple[VoucherRecord, ...], bool]:
         """Wczytuje i waliduje stan z pliku JSON lub tworzy czysty stan początkowy."""
         if not self._state_file.exists():
-            return create_empty_state(), (), True
+            return create_empty_state(), (), (create_expired_test_voucher(),), True
 
         try:
             raw_text = self._state_file.read_text(encoding="utf-8")
             parsed = json.loads(raw_text)
-            validated, parsed_attempts = validate_state_payload(parsed)
-            return validated, parsed_attempts, False
-        except (OSError, json.JSONDecodeError, ValueError, TypeError, KeyError) as exc:
+            validated, parsed_attempts, parsed_vouchers, migrated = validate_state_payload(parsed)
+            return validated, parsed_attempts, parsed_vouchers, migrated
+        except (
+            OSError,
+            json.JSONDecodeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            InvalidConfigurationError,
+        ) as exc:
             self._logger.error(
                 "Nie udało się wczytać pliku stanu zwrotów DEMO.",
                 exc_info=True,

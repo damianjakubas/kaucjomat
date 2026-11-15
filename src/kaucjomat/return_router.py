@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Body
 
 from kaucjomat.exceptions import InvalidDepositRequestError
 from kaucjomat.return_domain import (
@@ -20,8 +20,16 @@ from kaucjomat.return_schemas import (
     TestCardSchema,
     TestCardsListResponse,
 )
-from kaucjomat.return_store import ReturnSessionSnapshot, ReturnStateStore
+from kaucjomat.return_store import ReturnSessionSnapshot, ReturnStateStore, VoucherRecord
 from kaucjomat.test_cards import TestPackageCard, get_test_card_by_id, get_test_cards
+from kaucjomat.voucher_domain import VOUCHER_VALIDITY_DAYS
+from kaucjomat.voucher_schemas import (
+    DEFAULT_DEMO_WATERMARK,
+    IssueVoucherRequest,
+    IssueVoucherResponse,
+    VoucherSchema,
+    VouchersListResponse,
+)
 
 
 def _to_test_card_schema(card: TestPackageCard) -> TestCardSchema:
@@ -99,6 +107,25 @@ def _to_session_schema(snapshot: ReturnSessionSnapshot) -> ReturnSessionSchema:
     )
 
 
+def _to_voucher_schema(voucher: VoucherRecord) -> VoucherSchema:
+    """Konwertuje domenowy rekord bonu DEMO na model odpowiedzi HTTP."""
+    return VoucherSchema(
+        mode="DEMO",
+        voucher_code=voucher.voucher_code,
+        source_session_id=voucher.source_session_id,
+        amount_grosze=voucher.amount_grosze,
+        amount_formatted=voucher.amount_formatted,
+        accepted_count=voucher.accepted_count,
+        issued_at_iso=voucher.issued_at_iso,
+        expires_at_iso=voucher.expires_at_iso,
+        validity_days=VOUCHER_VALIDITY_DAYS,
+        status=voucher.status,
+        redeemed_at_iso=voucher.redeemed_at_iso,
+        is_test_seed=voucher.is_test_seed,
+        demo_watermark=DEFAULT_DEMO_WATERMARK,
+    )
+
+
 def _resolve_candidate_from_request(
     payload: DepositRequest,
 ) -> tuple[PackageCandidate, str | None]:
@@ -164,13 +191,47 @@ def create_return_router(store: ReturnStateStore) -> APIRouter:
             session=_to_session_schema(snapshot),
         )
 
+    @router.get("/vouchers", response_model=VouchersListResponse)
+    def list_vouchers() -> VouchersListResponse:
+        """Zwraca listę wszystkich zapisanych bonów DEMO (użytkownika oraz wygasły seed)."""
+        vouchers = store.list_vouchers()
+        return VouchersListResponse(
+            mode="DEMO",
+            vouchers=[_to_voucher_schema(voucher) for voucher in vouchers],
+        )
+
+    @router.post("/voucher", response_model=IssueVoucherResponse)
+    def issue_return_voucher(
+        payload: IssueVoucherRequest | None = Body(default=None),
+    ) -> IssueVoucherResponse:
+        """Zamyka sesję zwrotu z dodatnim saldem i wystawia lub odtwarza bon DEMO."""
+        expected_session_id = payload.session_id if payload is not None else None
+        voucher, snapshot, was_replayed = store.issue_voucher(
+            expected_session_id=expected_session_id
+        )
+        message = (
+            f"Przywrócono istniejący bon DEMO {voucher.voucher_code} dla sesji {voucher.source_session_id}."
+            if was_replayed
+            else f"Wystawiono bon kaucjomatowy DEMO {voucher.voucher_code} na kwotę {voucher.amount_formatted}."
+        )
+        return IssueVoucherResponse(
+            mode="DEMO",
+            message=message,
+            was_idempotent_replay=was_replayed,
+            voucher=_to_voucher_schema(voucher),
+            session=_to_session_schema(snapshot),
+        )
+
     @router.post("/reset", response_model=ResetStateResponse)
     def reset_return_state() -> ResetStateResponse:
-        """Czyści trwały rejestr zwróconych egzemplarzy i otwiera nową sesję DEMO."""
+        """Czyści trwały rejestr ID, bony użytkownika oraz otwiera nową czystą sesję DEMO."""
         snapshot = store.reset_demo_state()
         return ResetStateResponse(
             mode="DEMO",
-            message="Wyczyszczono rejestr zwróconych egzemplarzy oraz otwarto nową sesję DEMO.",
+            message=(
+                "Wyczyszczono rejestr zwróconych ID, sesję oraz bony użytkownika i "
+                "przywrócono testowy bon wygasły DEMO."
+            ),
             session=_to_session_schema(snapshot),
         )
 

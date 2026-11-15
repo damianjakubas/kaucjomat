@@ -7,6 +7,7 @@
   <!-- Lokalne style powłoki bez zewnętrznych CDN (praca w pełni offline) -->
   <link rel="stylesheet" href="/static/styles.css">
   <link rel="stylesheet" href="/static/return_machine.css">
+  <link rel="stylesheet" href="/static/voucher_print.css">
 </head>
 <body>
   <div class="app-shell">
@@ -110,10 +111,21 @@
               <strong class="metric-value" id="session-registry-count">0</strong>
             </div>
           </div>
-          <button type="button" class="btn-reset-demo" id="reset-demo-btn">Resetuj stan DEMO</button>
+          <div class="summary-actions">
+            <button
+              type="button"
+              class="btn-issue-voucher"
+              id="issue-voucher-btn"
+              data-can-issue="false"
+              disabled
+            >
+              Zakończ sesję i wystaw bon DEMO
+            </button>
+            <button type="button" class="btn-reset-demo" id="reset-demo-btn">Resetuj stan DEMO</button>
+          </div>
         </div>
 
-        <!-- Stanowisko butelkomatu: po lewej wlot + ekran skanera + historia, po prawej półka kart -->
+        <!-- Stanowisko butelkomatu: po lewej wlot + ekran skanera + bon + historia, po prawej półka kart -->
         <div class="return-station-grid">
           <div class="return-column-left">
             <div
@@ -132,6 +144,30 @@
                 <div class="scanner-meta" id="scanner-status-meta">Oczekiwanie na pierwszą próbę zwrotu.</div>
               </div>
             </div>
+
+            <!-- Karta ostatnio wystawionego bonu kaucyjnego DEMO (przystosowana również do @media print) -->
+            <section id="issued-voucher-card" class="issued-voucher-card" aria-live="polite" hidden>
+              <div class="voucher-card-header">
+                <span class="voucher-watermark-demo">BON KAUCYJNY — TRYB DEMO (Dokument niefiskalny)</span>
+                <span id="voucher-status-badge" class="voucher-status-badge">AKTYWNY</span>
+              </div>
+              <p class="voucher-print-banner">BON KAUCYJNY — TRYB DEMO — DOKUMENT NIEFISKALNY (WAŻNY 100 DNI)</p>
+              <dl class="voucher-grid">
+                <div><dt>Kod bonu DEMO</dt><dd id="voucher-code-value" class="voucher-code-mono">—</dd></div>
+                <div><dt>Wartość kaucji</dt><dd id="voucher-amount-value" class="voucher-amount-strong">0,00 zł</dd></div>
+                <div><dt>Przyjęte opakowania</dt><dd id="voucher-accepted-value">0 szt.</dd></div>
+                <div><dt>Data wystawienia</dt><dd id="voucher-issued-at-value">—</dd></div>
+                <div><dt>Ważny do</dt><dd id="voucher-expires-at-value">—</dd></div>
+                <div><dt>Sesja źródłowa</dt><dd id="voucher-session-value" class="voucher-code-mono">—</dd></div>
+              </dl>
+              <div class="voucher-card-actions">
+                <button type="button" class="btn-print-voucher" id="print-voucher-btn">Drukuj / Zapisz PDF (DEMO)</button>
+              </div>
+              <p id="voucher-seed-note" class="voucher-seed-note">
+                Wskazówka edukacyjna: rejestr bonów zawiera także testowy bon wygasły
+                <code>BON-DEMO-EXP-0001</code> (KZ-13) do przetestowania w Kasie Sklepowej.
+              </p>
+            </section>
 
             <div class="session-history-box">
               <h3>Historia wrzutów bieżącej sesji</h3>

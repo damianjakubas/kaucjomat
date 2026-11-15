@@ -6,6 +6,7 @@
   <title>KaucjaSim DEMO — Symulator polskiego systemu kaucyjnego</title>
   <!-- Lokalne style powłoki bez zewnętrznych CDN (praca w pełni offline) -->
   <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="/static/return_machine.css">
 </head>
 <body>
   <div class="app-shell">
@@ -84,19 +85,74 @@
         <p class="panel-description" data-view-description="butelkomat">
           Automat przyjmujący opakowania kaucyjne i drukujący bon DEMO.
         </p>
-        <div class="panel-grid">
-          <article class="info-card">
-            <h3>Zakres planowany dla stanowiska zwrotnego</h3>
-            <p data-view-scope="butelkomat">
-              Walidacja wrzutów PET i puszek oraz wystawianie numerowanego bonu ważnego 100 dni.
-            </p>
-          </article>
-          <article class="info-card">
-            <h3>Zasady prezentacji DEMO</h3>
-            <p>
-              Każda sesja symuluje zwrot opakowań edukacyjnie bez komunikacji z zewnętrznym systemem operatora ani drukarką fiskalną.
-            </p>
-          </article>
+
+        <!-- Pasek podsumowania bieżącej sesji zwrotu DEMO -->
+        <div class="session-summary-bar" aria-label="Podsumowanie bieżącej sesji zwrotów DEMO">
+          <div class="summary-metrics">
+            <div class="summary-metric">
+              <span class="metric-label">Suma kaucji DEMO</span>
+              <strong class="metric-value" id="session-total-amount">0,00 zł</strong>
+            </div>
+            <div class="summary-metric">
+              <span class="metric-label">Przyjęte (automat)</span>
+              <strong class="metric-value" id="session-accepted-count">0</strong>
+            </div>
+            <div class="summary-metric">
+              <span class="metric-label">Szkło do kasy</span>
+              <strong class="metric-value" id="session-redirected-count">0</strong>
+            </div>
+            <div class="summary-metric">
+              <span class="metric-label">Odrzucone</span>
+              <strong class="metric-value" id="session-rejected-count">0</strong>
+            </div>
+            <div class="summary-metric">
+              <span class="metric-label">Rejestr ID</span>
+              <strong class="metric-value" id="session-registry-count">0</strong>
+            </div>
+          </div>
+          <button type="button" class="btn-reset-demo" id="reset-demo-btn">Resetuj stan DEMO</button>
+        </div>
+
+        <!-- Stanowisko butelkomatu: po lewej wlot + ekran skanera + historia, po prawej półka kart -->
+        <div class="return-station-grid">
+          <div class="return-column-left">
+            <div
+              id="deposit-dropzone"
+              class="deposit-dropzone"
+              role="region"
+              aria-label="Wlot butelkomatu DEMO — upuść kartę opakowania"
+            >
+              <span class="dropzone-badge">WLOT AUTOMATU DEMO</span>
+              <p class="dropzone-title">Przeciągnij kartę opakowania tutaj lub kliknij „Wrzuć do automatu”</p>
+              <div id="scanner-result-box" class="scanner-result-box" aria-live="polite">
+                <strong class="scanner-status-title" id="scanner-status-title">GOTOWY DO SKANU (DEMO)</strong>
+                <p class="scanner-message" id="scanner-status-message">
+                  Wybierz opakowanie z półki testowej po prawej stronie, aby sprawdzić reguły systemu kaucyjnego.
+                </p>
+                <div class="scanner-meta" id="scanner-status-meta">Oczekiwanie na pierwszą próbę zwrotu.</div>
+              </div>
+            </div>
+
+            <div class="session-history-box">
+              <h3>Historia wrzutów bieżącej sesji</h3>
+              <ul id="session-attempts-list" class="session-attempts-list">
+                <li class="attempt-empty">Brak wrzutów w tej sesji DEMO.</li>
+              </ul>
+              <p class="voucher-next-step" id="voucher-next-step-hint">
+                Wystawienie bonu DEMO (ważnego 100 dni) dla zebranej kwoty realizuje kolejny krok systemu (widok Kasy / Bonu).
+              </p>
+              <p class="panel-scope-note" data-view-scope="butelkomat">
+                Walidacja wrzutów PET i puszek oraz wystawianie numerowanego bonu ważnego 100 dni.
+              </p>
+            </div>
+          </div>
+
+          <aside class="return-column-right" aria-label="Półka 8 kart testowych opakowań">
+            <h3>Półka kart testowych (8 scenariuszy)</h3>
+            <div id="package-cards-shelf" class="package-cards-shelf">
+              <p class="shelf-loading">Ładowanie kart testowych z lokalnego API DEMO...</p>
+            </div>
+          </aside>
         </div>
       </section>
 
@@ -176,7 +232,8 @@
     </footer>
   </div>
 
-  <!-- Lokalny skrypt przełącznika widoków (vanilla JS bez bundlerów i bibliotek z sieci) -->
+  <!-- Lokalny skrypt przełącznika widoków oraz obsługi butelkomatu (vanilla JS) -->
   <script src="/static/app.js" defer></script>
+  <script src="/static/return_machine.js" defer></script>
 </body>
 </html>

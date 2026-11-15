@@ -54,8 +54,14 @@ def test_root_serves_offline_demo_shell_with_three_views() -> None:
         'data-view-target="butelkomat"',
         'data-view-target="kasa"',
         'data-view-target="analityka"',
+        'id="deposit-dropzone"',
+        'id="package-cards-shelf"',
+        'id="reset-demo-btn"',
+        'id="scanner-result-box"',
         "/static/styles.css",
+        "/static/return_machine.css",
         "/static/app.js",
+        "/static/return_machine.js",
     )
     for fragment in required_fragments:
         assert fragment in html, f"Brak wymaganego fragmentu w index.html: {fragment}"
@@ -64,7 +70,7 @@ def test_root_serves_offline_demo_shell_with_three_views() -> None:
 
 
 def test_static_assets_served_with_expected_content() -> None:
-    """Weryfikuje serwowanie lokalnych zasobów `/static/styles.css` i `/static/app.js`."""
+    """Weryfikuje serwowanie lokalnych zasobów CSS i JS dla powłoki oraz butelkomatu."""
     client = TestClient(create_app())
 
     css_response = client.get("/static/styles.css")
@@ -74,6 +80,13 @@ def test_static_assets_served_with_expected_content() -> None:
     assert ".view-switcher" in css_response.text
     _assert_no_external_urls(css_response.text, "styles.css")
 
+    machine_css_response = client.get("/static/return_machine.css")
+    assert machine_css_response.status_code == 200
+    assert "text/css" in machine_css_response.headers["content-type"]
+    assert ".deposit-dropzone" in machine_css_response.text
+    assert ".package-cards-shelf" in machine_css_response.text
+    _assert_no_external_urls(machine_css_response.text, "return_machine.css")
+
     js_response = client.get("/static/app.js")
     assert js_response.status_code == 200
     assert "javascript" in js_response.headers["content-type"]
@@ -82,9 +95,23 @@ def test_static_assets_served_with_expected_content() -> None:
         assert fn_name in js_response.text, f"Brak funkcji {fn_name} w app.js"
     _assert_no_external_urls(js_response.text, "app.js")
 
+    machine_js_response = client.get("/static/return_machine.js")
+    assert machine_js_response.status_code == 200
+    assert "javascript" in machine_js_response.headers["content-type"]
+    assert "/**" in machine_js_response.text
+    for fn_name in (
+        "loadReturnCards",
+        "loadReturnSession",
+        "submitPackageDeposit",
+        "resetReturnDemoState",
+        "initReturnMachine",
+    ):
+        assert fn_name in machine_js_response.text, f"Brak funkcji {fn_name} w return_machine.js"
+    _assert_no_external_urls(machine_js_response.text, "return_machine.js")
+
 
 def test_module_line_count_limits() -> None:
-    """Pilnuje limitu < 300 linii w modułach/testach oraz < 200 linii w `styles.css`."""
+    """Pilnuje limitu < 300 linii w modułach/testach/HTML/JS oraz < 200 linii w plikach `.css`."""
     root = get_project_root()
     checked_dirs = (root / "src" / "kaucjomat", root / "tests")
     source_extensions = {".py", ".html", ".css", ".js"}
@@ -97,7 +124,7 @@ def test_module_line_count_limits() -> None:
             if "__pycache__" in file_path.parts:
                 continue
             line_count = len(file_path.read_text(encoding="utf-8").splitlines())
-            limit = 200 if file_path.name == "styles.css" else 300
+            limit = 200 if file_path.suffix == ".css" else 300
             if line_count >= limit:
                 rel_path = file_path.relative_to(root)
                 violations.append(f"{rel_path}: {line_count} linii (limit < {limit})")

@@ -59,3 +59,17 @@ class ReturnStateStorageError(KaucjomatError):
 
     error_code: str = "RETURN_STATE_STORAGE_ERROR"
     status_code: int = 500
+
+
+class EmptyReturnSessionError(KaucjomatError):
+    """Wyjątek zgłaszany przy próbie wystawienia bonu dla pustej sesji zwrotu."""
+
+    error_code: str = "EMPTY_RETURN_SESSION"
+    status_code: int = 400
+
+
+class SessionVoucherConflictError(KaucjomatError):
+    """Wyjątek zgłaszany przy próbie zamknięcia niezgodnej lub już rozliczonej sesji."""
+
+    error_code: str = "SESSION_VOUCHER_CONFLICT"
+    status_code: int = 409

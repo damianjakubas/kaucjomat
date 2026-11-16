@@ -273,3 +273,9 @@ def run_two_stage_batch_analysis(
         stage_two_cpu=stage_two,
         total_elapsed_ms=total_ms,
     )
+
+
+from kaucjomat.batch_cli import (  # noqa: E402, F401
+    execute_batch_cli_command,
+    register_batch_subparsers,
+)

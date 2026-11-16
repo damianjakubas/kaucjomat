@@ -11,6 +11,10 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from kaucjomat.batch_cli import (
+    execute_batch_cli_command,
+    register_batch_subparsers,
+)
 from kaucjomat.config import (
     APP_NAME,
     APP_VERSION,
@@ -91,7 +95,7 @@ def create_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(
         dest="command",
         title="Dostępne podkomendy",
-        metavar="{info,serve}",
+        metavar="{info,serve,generate-logs,analyze-logs}",
     )
     subparsers.add_parser(
         "info",
@@ -121,6 +125,7 @@ def create_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Włącza automatyczne przeładowanie serwera przy zmianach w kodzie.",
     )
+    register_batch_subparsers(subparsers)
     return parser
 
 
@@ -197,6 +202,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 log_file=args.log_file,
             )
             return 0
+
+        if args.command in {"generate-logs", "analyze-logs"}:
+            return execute_batch_cli_command(args)
     except KaucjomatError as exc:
         root_logger = get_logger()
         if root_logger.handlers:

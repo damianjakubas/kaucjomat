@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+import json
 import logging
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
+
+from kaucjomat.cli import main
 
 from kaucjomat.batch_cpu import (
     analyze_record_chunk,
@@ -157,3 +163,118 @@ def test_run_two_stage_batch_analysis_auto_generate_and_logging(
 
     gen_summary = generate_batch_log_dataset(tmp_path / "gen", file_count=1, records_per_file=10, seed=1)
     assert "DEMO" in format_batch_generation_report(gen_summary)
+
+
+def test_cli_generate_and_analyze_logs_commands(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Podkomendy generate-logs i analyze-logs działają w trybie tekstowym oraz --json."""
+    log_dir = tmp_path / "cli_logs"
+
+    exit_gen = main(
+        [
+            "generate-logs",
+            "--log-dir",
+            str(log_dir),
+            "--files",
+            "2",
+            "--records-per-file",
+            "50",
+            "--invalid-ratio",
+            "0.1",
+            "--seed",
+            "7",
+            "--json",
+        ]
+    )
+    gen_out = capsys.readouterr().out
+    gen_data = json.loads(gen_out)
+
+    assert exit_gen == 0
+    assert gen_data["mode_label"] == "DEMO"
+    assert gen_data["file_count"] == 2
+    assert gen_data["total_lines"] == 100
+
+    exit_analyze = main(
+        [
+            "analyze-logs",
+            "--log-dir",
+            str(log_dir),
+            "--chunk-size",
+            "25",
+            "--io-workers",
+            "2",
+            "--cpu-workers",
+            "2",
+            "--work-iterations",
+            "15",
+            "--no-auto-generate",
+            "--json",
+        ]
+    )
+    analyze_out = capsys.readouterr().out
+    analyze_data = json.loads(analyze_out)
+
+    assert exit_analyze == 0
+    assert analyze_data["mode_label"] == "DEMO"
+    assert analyze_data["stage_one_io"]["files_processed"] == 2
+    assert analyze_data["stage_two_cpu"]["metrics"]["processed_records"] == (
+        analyze_data["stage_one_io"]["valid_records"]
+    )
+
+
+def test_cli_analyze_logs_subprocess_spawn(tmp_path: Path) -> None:
+    """Uruchomienie ``python -m kaucjomat analyze-logs`` działa w podprocesie spawn na Windows."""
+    log_dir = tmp_path / "spawn_logs"
+    env = os.environ.copy()
+    env["PYTHONUTF8"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "kaucjomat",
+            "analyze-logs",
+            "--log-dir",
+            str(log_dir),
+            "--chunk-size",
+            "500",
+            "--cpu-workers",
+            "2",
+            "--work-iterations",
+            "10",
+            "--json",
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["mode_label"] == "DEMO"
+    assert payload["auto_generated"] is True
+    assert payload["stage_two_cpu"]["execution_mode"] == "multiprocess_spawn"
+    assert payload["stage_one_io"]["valid_records"] > 0
+
+
+def test_cli_batch_commands_reject_invalid_arguments(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Błędne argumenty lub pusty katalog przy --no-auto-generate zwracają kod błędu 2."""
+    exit_empty = main(
+        ["analyze-logs", "--log-dir", str(tmp_path / "empty"), "--no-auto-generate"]
+    )
+    err_empty = capsys.readouterr().err
+    assert exit_empty == 2
+    assert "BATCH_LOG_ANALYSIS_ERROR" in err_empty
+
+    exit_bad_files = main(["generate-logs", "--files", "0"])
+    err_bad_files = capsys.readouterr().err
+    assert exit_bad_files == 2
+    assert "INVALID_CONFIGURATION" in err_bad_files

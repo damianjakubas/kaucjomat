@@ -17,8 +17,6 @@ from kaucjomat.batch_format import (
 from kaucjomat.batch_generator import generate_batch_log_dataset
 from kaucjomat.batch_runner import run_two_stage_batch_analysis
 from kaucjomat.exceptions import BatchLogAnalysisError
-from kaucjomat.gil_benchmark import run_gil_benchmark
-from kaucjomat.gil_chart import save_gil_benchmark_artifacts
 
 
 def register_batch_subparsers(
@@ -146,8 +144,8 @@ def _register_benchmark_gil_parser(
                         help="Maksymalna liczba rekordów w jednej porcji (domyślnie 1000).")
     parser.add_argument("--io-workers", type=int, default=None,
                         help="Liczba wątków Etapu 1 I/O (domyślnie dobierana automatycznie).")
-    parser.add_argument("--work-iterations", type=int, default=250,
-                        help="Rundy FNV-1a na rekord (domyślnie 250).")
+    parser.add_argument("--work-iterations", type=int, default=30,
+                        help="Rundy FNV-1a na rekord (domyślnie 30).")
     parser.add_argument("--no-auto-generate", action="store_true",
                         help="Wyłącza automatyczne generowanie logów DEMO, gdy katalog jest pusty.")
     parser.add_argument("--json", action="store_true",
@@ -156,6 +154,10 @@ def _register_benchmark_gil_parser(
 
 def _execute_benchmark_gil(args: argparse.Namespace) -> int:
     """Uruchamia benchmark GIL, zapisuje artefakty i wypisuje raport tekstowy lub JSON."""
+    # Import leniwy: matplotlib ładujemy tylko dla tej podkomendy.
+    from kaucjomat.gil_benchmark import run_gil_benchmark
+    from kaucjomat.gil_chart import save_gil_benchmark_artifacts
+
     report = run_gil_benchmark(
         args.log_dir,
         repeats=args.repeats,

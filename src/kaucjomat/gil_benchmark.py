@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from functools import partial
@@ -23,6 +24,7 @@ from kaucjomat.batch_runner import (
     compute_analytics_sequential, read_and_chunk_logs_threaded,
 )
 from kaucjomat.config import get_default_log_dir
+from kaucjomat.gil_conclusions import build_conclusions
 from kaucjomat.exceptions import BatchLogAnalysisError, GilBenchmarkError, InvalidConfigurationError
 from kaucjomat.logging_config import get_logger
 
@@ -121,7 +123,7 @@ def collect_gil_environment_info() -> GilEnvironmentInfo:
 
 def compute_analytics_threaded(
     chunks: Sequence[tuple[BatchLogRecord, ...]], *,
-    cpu_workers: int | None = None, work_iterations: int = 250,
+    cpu_workers: int | None = None, work_iterations: int = 30,
 ) -> StageTwoCpuResult:
     """Wykonuje obliczenia CPU-bound na puli wątków (podlegającej blokadzie GIL)."""
     _validate_positive_int(cpu_workers, "cpu_workers", allow_none=True)
@@ -189,39 +191,10 @@ def _build_strategy_results(
     return tuple(results)
 
 
-def _build_conclusions(
-    env: GilEnvironmentInfo, strategies: tuple[BenchmarkStrategyResult, ...],
-) -> tuple[str | None, tuple[str, ...]]:
-    """Buduje ostrzeżenie dla 1 CPU oraz krótkie wnioski domenowe o wpływie GIL."""
-    by_id = {item.strategy_id: item for item in strategies}
-    seq, thr, proc = by_id["sequential"], by_id["threads"], by_id["processes_spawn"]
-    single_core_warning: str | None = None
-    if env.cpu_count <= 1:
-        single_core_warning = (
-            "Wykryto środowisko jednordzeniowe (cpu_count=1): pula procesów spawn nie ma "
-            "dodatkowych rdzeni CPU, więc narzut startu procesów i IPC może ją spowolnić."
-        )
-
-    gil_state = "aktywny" if env.gil_enabled else "wyłączony (free-threading)"
-    conclusions = [
-        f"Środowisko: {env.implementation} {env.python_version}, wykryte rdzenie CPU={env.cpu_count}, "
-        f"GIL={gil_state} (interwał przełączania {env.switch_interval_s:.4f} s).",
-        f"Wątki ({thr.workers} pracowników) uzyskały medianę {thr.median_ms:.1f} ms "
-        f"({thr.speedup_vs_sequential:.2f}x względem sekwencyjnego {seq.median_ms:.1f} ms), "
-        "co potwierdza serializację kodu bajtowego Pythona przez GIL w jednym procesie.",
-        f"Procesy spawn ({proc.workers} pracowników) osiągnęły medianę {proc.median_ms:.1f} ms "
-        f"({proc.speedup_vs_sequential:.2f}x względem przebiegu sekwencyjnego), "
-        "omijając GIL dzięki niezależnym interpreterom w ramach tej samej pracy FNV-1a.",
-    ]
-    if single_core_warning is not None:
-        conclusions.append(single_core_warning)
-    return single_core_warning, tuple(conclusions)
-
-
 def run_gil_benchmark(
     log_dir: Path | None = None, *, repeats: int = 3, workers: int | None = None,
     chunk_size: int = 1000, io_workers: int | None = None,
-    work_iterations: int = 250, auto_generate: bool = True,
+    work_iterations: int = 30, auto_generate: bool = True,
 ) -> GilBenchmarkReport:
     """Przeprowadza porównawczy benchmark GIL dla strategii sekwencyjnej, wątkowej i spawn."""
     for value, name, allow_none in (
@@ -252,7 +225,10 @@ def run_gil_benchmark(
     baseline_metrics: ChunkAnalysisResult | None = None
     for repeat_idx in range(1, repeats + 1):
         for strategy_id in _STRATEGY_ORDER:
-            result = runners[strategy_id][2]()
+            try:
+                result = runners[strategy_id][2]()
+            except (BrokenProcessPool, OSError) as exc:
+                raise GilBenchmarkError(f"Awaria strategii '{strategy_id}': {exc}") from exc
             # Równość pełnego ChunkAnalysisResult sprawdzamy poza stoperem każdej strategii.
             if baseline_metrics is None:
                 baseline_metrics = result.metrics
@@ -265,7 +241,7 @@ def run_gil_benchmark(
     worker_counts = {key: spec[1] for key, spec in runners.items()}
     strategies = _build_strategy_results(runs_by_strategy, labels, worker_counts, repeats)
     fastest = min(strategies, key=lambda item: item.median_ms).strategy_id
-    single_core_warning, conclusions = _build_conclusions(env, strategies)
+    single_core_warning, conclusions = build_conclusions(env, strategies)
     total_ms = round((time.perf_counter() - started_at) * 1000.0, 3)
 
     _LOGGER.info(

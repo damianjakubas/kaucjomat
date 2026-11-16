@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -79,7 +80,7 @@ def render_gil_benchmark_chart(report: GilBenchmarkReport, output_path: Path) ->
     fig.suptitle("KaucjaSim DEMO — Benchmark GIL", fontsize=14, fontweight="bold")
     fig.text(
         0.5, 0.01,
-        f"CPU: {env.cpu_count} rdzeni | Python {env.python_version} | GIL: {gil_state} | "
+        f"DEMO | CPU: {env.cpu_count} rdzeni | Python {env.python_version} | GIL: {gil_state} | "
         f"rekordy: {report.valid_records} | rundy FNV-1a: {report.work_iterations} | "
         f"suma kontrolna: {hex(report.verified_metrics.audit_checksum)}",
         ha="center", fontsize=8, color="#374151",
@@ -105,14 +106,22 @@ def save_gil_benchmark_artifacts(
         json_name, png_name = BENCHMARK_RESULTS_JSON_NAME, BENCHMARK_CHART_PNG_NAME
     json_path, png_path = target_dir / json_name, target_dir / png_name
     updated = replace(report, json_artifact_path=json_path, chart_artifact_path=png_path)
-    render_gil_benchmark_chart(updated, png_path)
+    # Zapis atomowy: najpierw pliki tymczasowe, potem podmiana obu docelowych plików.
+    tmp_png = png_path.with_name(png_path.name + ".tmp")
+    tmp_json = json_path.with_name(json_path.name + ".tmp")
     try:
-        json_path.write_text(
+        render_gil_benchmark_chart(updated, tmp_png)
+        tmp_json.write_text(
             json.dumps(gil_benchmark_report_to_dict(updated), ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
+        os.replace(tmp_png, png_path)
+        os.replace(tmp_json, json_path)
     except OSError as exc:
-        raise GilBenchmarkError(f"Nie można zapisać raportu {json_path}: {exc}") from exc
+        raise GilBenchmarkError(f"Nie można zapisać artefaktów w {target_dir}: {exc}") from exc
+    finally:
+        tmp_png.unlink(missing_ok=True)
+        tmp_json.unlink(missing_ok=True)
     _LOGGER.info("Zapisano artefakty benchmarku GIL DEMO: json=%s, png=%s", json_path, png_path)
     return updated
 

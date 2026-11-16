@@ -1,0 +1,60 @@
+"""Wnioski edukacyjne o wpływie GIL, dobierane na podstawie zmierzonych czasów."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from kaucjomat.gil_benchmark import BenchmarkStrategyResult, GilEnvironmentInfo
+
+_SPEEDUP_THRESHOLD = 1.2  # Próg przyspieszenia uznawany za realny zysk z równoległości.
+
+
+def _threads_conclusion(
+    env: GilEnvironmentInfo, thr: BenchmarkStrategyResult, seq: BenchmarkStrategyResult,
+) -> str:
+    """Opisuje wynik wątków zależnie od zmierzonego przyspieszenia i stanu GIL."""
+    head = (f"Wątki ({thr.workers} pracowników) uzyskały medianę {thr.median_ms:.1f} ms "
+            f"({thr.speedup_vs_sequential:.2f}x względem sekwencyjnego {seq.median_ms:.1f} ms)")
+    if thr.speedup_vs_sequential >= _SPEEDUP_THRESHOLD:
+        tail = ("co wskazuje na równoległe wykonanie kodu bajtowego"
+                + (" mimo aktywnego GIL." if env.gil_enabled else " (build free-threading)."))
+    elif env.gil_enabled:
+        tail = "co potwierdza serializację kodu bajtowego Pythona przez GIL w jednym procesie."
+    else:
+        tail = "mimo wyłączonego GIL; wynik może wynikać z narzutu puli wątków."
+    return f"{head}, {tail}"
+
+
+def _processes_conclusion(proc: BenchmarkStrategyResult, seq: BenchmarkStrategyResult) -> str:
+    """Opisuje wynik procesów spawn zależnie od zmierzonego przyspieszenia."""
+    head = (f"Procesy spawn ({proc.workers} pracowników) osiągnęły medianę {proc.median_ms:.1f} ms "
+            f"({proc.speedup_vs_sequential:.2f}x względem przebiegu sekwencyjnego)")
+    if proc.speedup_vs_sequential >= _SPEEDUP_THRESHOLD:
+        return f"{head}, omijając GIL dzięki niezależnym interpreterom."
+    return f"{head} — bez wyraźnego zysku: narzut startu spawn i IPC lub zbyt mało rdzeni CPU."
+
+
+def build_conclusions(
+    env: GilEnvironmentInfo, strategies: tuple[BenchmarkStrategyResult, ...],
+) -> tuple[str | None, tuple[str, ...]]:
+    """Buduje ostrzeżenie dla 1 CPU oraz krótkie wnioski domenowe o wpływie GIL."""
+    by_id = {item.strategy_id: item for item in strategies}
+    seq, thr, proc = by_id["sequential"], by_id["threads"], by_id["processes_spawn"]
+    single_core_warning: str | None = None
+    if env.cpu_count <= 1:
+        single_core_warning = (
+            "Wykryto środowisko jednordzeniowe (cpu_count=1): pula procesów spawn nie ma "
+            "dodatkowych rdzeni CPU, więc narzut startu procesów i IPC może ją spowolnić."
+        )
+
+    gil_state = "aktywny" if env.gil_enabled else "wyłączony (free-threading)"
+    conclusions = [
+        f"Środowisko: {env.implementation} {env.python_version}, wykryte rdzenie CPU={env.cpu_count}, "
+        f"GIL={gil_state} (interwał przełączania {env.switch_interval_s:.4f} s).",
+        _threads_conclusion(env, thr, seq),
+        _processes_conclusion(proc, seq),
+    ]
+    if single_core_warning is not None:
+        conclusions.append(single_core_warning)
+    return single_core_warning, tuple(conclusions)

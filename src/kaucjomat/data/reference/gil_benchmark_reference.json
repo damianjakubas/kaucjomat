@@ -1,6 +1,6 @@
 {
   "mode_label": "DEMO",
-  "generated_at_iso": "2026-11-16T18:11:49+00:00",
+  "generated_at_iso": "2026-11-16T18:38:59+00:00",
   "log_dir": "data/generated/benchmark_logs",
   "auto_generated": false,
   "environment": {
@@ -18,13 +18,13 @@
     "valid_records": 39597,
     "invalid_lines": 403,
     "chunk_size": 1000,
-    "work_iterations": 250,
-    "io_elapsed_ms": 287.952
+    "work_iterations": 30,
+    "io_elapsed_ms": 245.429
   },
   "benchmark_config": {
     "repeats": 3,
     "workers": 8,
-    "total_benchmark_elapsed_ms": 371589.199,
+    "total_benchmark_elapsed_ms": 45140.41,
     "fastest_strategy_id": "processes_spawn"
   },
   "strategies": [
@@ -34,14 +34,14 @@
       "workers": 1,
       "repeats": 3,
       "runs_ms": [
-        54375.559,
-        56277.004,
-        57178.814
+        6510.874,
+        6921.0,
+        6625.687
       ],
-      "median_ms": 56277.004,
-      "mean_ms": 55943.792,
-      "min_ms": 54375.559,
-      "max_ms": 57178.814,
+      "median_ms": 6625.687,
+      "mean_ms": 6685.854,
+      "min_ms": 6510.874,
+      "max_ms": 6921.0,
       "speedup_vs_sequential": 1.0,
       "relative_to_sequential_pct": 100.0
     },
@@ -51,16 +51,16 @@
       "workers": 8,
       "repeats": 3,
       "runs_ms": [
-        57029.685,
-        56039.612,
-        55647.072
+        6750.455,
+        6788.4,
+        6878.765
       ],
-      "median_ms": 56039.612,
-      "mean_ms": 56238.79,
-      "min_ms": 55647.072,
-      "max_ms": 57029.685,
-      "speedup_vs_sequential": 1.004,
-      "relative_to_sequential_pct": 99.6
+      "median_ms": 6788.4,
+      "mean_ms": 6805.873,
+      "min_ms": 6750.455,
+      "max_ms": 6878.765,
+      "speedup_vs_sequential": 0.976,
+      "relative_to_sequential_pct": 102.5
     },
     {
       "strategy_id": "processes_spawn",
@@ -68,16 +68,16 @@
       "workers": 8,
       "repeats": 3,
       "runs_ms": [
-        11649.006,
-        11030.754,
-        12072.503
+        1472.176,
+        1535.972,
+        1410.5
       ],
-      "median_ms": 11649.006,
-      "mean_ms": 11584.088,
-      "min_ms": 11030.754,
-      "max_ms": 12072.503,
-      "speedup_vs_sequential": 4.831,
-      "relative_to_sequential_pct": 20.7
+      "median_ms": 1472.176,
+      "mean_ms": 1472.883,
+      "min_ms": 1410.5,
+      "max_ms": 1535.972,
+      "speedup_vs_sequential": 4.501,
+      "relative_to_sequential_pct": 22.2
     }
   ],
   "verified_metrics": {
@@ -104,14 +104,14 @@
       "VOLUME_LIMIT_EXCEEDED": 1262
     },
     "anomalous_latency_count": 1368,
-    "audit_checksum": 16234328674625222910,
-    "audit_checksum_hex": "0xe14bebea99f978fe"
+    "audit_checksum": 16184670422353667457,
+    "audit_checksum_hex": "0xe09b7fffc3296581"
   },
   "single_core_warning": null,
   "conclusions": [
     "Środowisko: CPython 3.13.5, wykryte rdzenie CPU=16, GIL=aktywny (interwał przełączania 0.0050 s).",
-    "Wątki (8 pracowników) uzyskały medianę 56039.6 ms (1.00x względem sekwencyjnego 56277.0 ms), co potwierdza serializację kodu bajtowego Pythona przez GIL w jednym procesie.",
-    "Procesy spawn (8 pracowników) osiągnęły medianę 11649.0 ms (4.83x względem przebiegu sekwencyjnego), omijając GIL dzięki niezależnym interpreterom w ramach tej samej pracy FNV-1a."
+    "Wątki (8 pracowników) uzyskały medianę 6788.4 ms (0.98x względem sekwencyjnego 6625.7 ms), co potwierdza serializację kodu bajtowego Pythona przez GIL w jednym procesie.",
+    "Procesy spawn (8 pracowników) osiągnęły medianę 1472.2 ms (4.50x względem przebiegu sekwencyjnego), omijając GIL dzięki niezależnym interpreterom."
   ],
   "artifacts": {
     "json_path": "src/kaucjomat/data/reference/gil_benchmark_reference.json",

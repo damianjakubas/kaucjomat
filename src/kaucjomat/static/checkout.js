@@ -224,8 +224,8 @@
     node("checkout-refresh").addEventListener("click", () => { void loadContext(); });
     window.addEventListener("kaucjomat:state-changed", onStateChanged);
     window.addEventListener("kaucjomat:view-selected", (event) => { if (event.detail.viewId === "kasa") void loadContext(); });
-    window.addEventListener("focus", () => { void loadContext(); });
-    document.addEventListener("visibilitychange", () => { if (!document.hidden) void loadContext(); });
+    window.addEventListener("focus", () => { if (!node("view-kasa")?.hidden) void loadContext(); });
+    document.addEventListener("visibilitychange", () => { if (!document.hidden && !node("view-kasa")?.hidden) void loadContext(); });
     if (store.fault) error(store.fault, "checkoutStorage");
     if (store.read().pending) node("checkout-message").textContent = "Odtworzono oczekujące żądanie. Wybierz „Sprawdź ponownie”.";
     render();

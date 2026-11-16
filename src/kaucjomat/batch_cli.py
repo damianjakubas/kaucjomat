@@ -13,6 +13,7 @@ from kaucjomat.batch_format import (
     format_batch_generation_report,
 )
 from kaucjomat.batch_generator import generate_batch_log_dataset
+from kaucjomat.batch_runner import run_two_stage_batch_analysis
 from kaucjomat.exceptions import BatchLogAnalysisError
 
 
@@ -50,7 +51,7 @@ def register_batch_subparsers(
         "--invalid-ratio",
         type=float,
         default=0.01,
-        help="Odsetek uszkodzonych linii z przedziału [0.0, 0.5] (domyślnie 0.01).",
+        help="Odsetek uszkodzonych linii z przedziału [0.0, 1.0) (domyślnie 0.01).",
     )
     gen_parser.add_argument(
         "--seed",
@@ -134,9 +135,6 @@ def execute_batch_cli_command(args: argparse.Namespace) -> int:
         return 0
 
     if args.command == "analyze-logs":
-        # Import lokalny zapobiega cyklicznym zależnościom przy re-eksporcie w batch_runner.
-        from kaucjomat.batch_runner import run_two_stage_batch_analysis
-
         report = run_two_stage_batch_analysis(
             args.log_dir,
             chunk_size=args.chunk_size,

@@ -94,7 +94,12 @@ def read_and_chunk_logs_threaded(
     if not log_dir.exists() or not log_dir.is_dir():
         raise BatchLogAnalysisError(f"Katalog logów wsadowych nie istnieje: {log_dir}")
 
-    log_files = sorted(path for path in log_dir.glob("*.log") if path.is_file())
+    try:
+        log_files = sorted(path for path in log_dir.glob("*.log") if path.is_file())
+    except OSError as exc:
+        raise BatchLogAnalysisError(
+            f"Nie można odczytać katalogu logów wsadowych {log_dir}: {exc}"
+        ) from exc
     if not log_files:
         raise BatchLogAnalysisError(
             f"Brak plików *.log do analizy w katalogu: {log_dir}"
@@ -238,7 +243,14 @@ def run_two_stage_batch_analysis(
     started_at = time.perf_counter()
     auto_generated = False
 
-    has_logs = target_dir.exists() and any(target_dir.glob("*.log"))
+    try:
+        has_logs = target_dir.is_dir() and any(
+            path.is_file() for path in target_dir.glob("*.log")
+        )
+    except OSError as exc:
+        raise BatchLogAnalysisError(
+            f"Nie można odczytać katalogu logów wsadowych {target_dir}: {exc}"
+        ) from exc
     if not has_logs and auto_generate:
         _LOGGER.info("Brak plików *.log w %s — generuję zbiór DEMO.", target_dir)
         generate_batch_log_dataset(target_dir)
@@ -273,9 +285,3 @@ def run_two_stage_batch_analysis(
         stage_two_cpu=stage_two,
         total_elapsed_ms=total_ms,
     )
-
-
-from kaucjomat.batch_cli import (  # noqa: E402, F401
-    execute_batch_cli_command,
-    register_batch_subparsers,
-)

@@ -5,14 +5,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from kaucjomat.batch_generator import BatchDatasetSummary
+from kaucjomat.return_domain import format_pln_from_grosze
 
 if TYPE_CHECKING:
     from kaucjomat.batch_runner import BatchAnalysisReport
-
-
-def _format_pln(grosze: int) -> str:
-    """Formatuje kwotę w groszach do czytelnej postaci PLN z przecinkiem."""
-    return f"{grosze / 100:.2f} zł".replace(".", ",")
 
 
 def format_batch_generation_report(summary: BatchDatasetSummary) -> str:
@@ -52,9 +48,9 @@ def format_batch_analysis_report(report: BatchAnalysisReport) -> str:
             f"czas całkowity={report.total_elapsed_ms:.3f} ms"
         ),
         (
-            f"Zwroty: przyjęte={m.accepted_count} ({_format_pln(m.accepted_deposit_grosze)}) | "
+            f"Zwroty: przyjęte={m.accepted_count} ({format_pln_from_grosze(m.accepted_deposit_grosze)}) | "
             f"szkło do kasy={m.redirected_glass_count} "
-            f"(sugerowane {_format_pln(m.redirected_glass_grosze)}) | "
+            f"(sugerowane {format_pln_from_grosze(m.redirected_glass_grosze)}) | "
             f"odrzucone={m.rejected_count} | anomalie >150ms={m.anomalous_latency_count}"
         ),
         f"Suma kontrolna audytu: {hex(m.audit_checksum)}",

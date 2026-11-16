@@ -122,7 +122,7 @@ def stream_valid_log_records(
     for raw_line in iter_raw_log_lines(file_path):
         record = parse_batch_log_line(raw_line)
         if record is None:
-            if invalid_counter is not None:
+            if invalid_counter:
                 invalid_counter[0] += 1
             continue
         yield record

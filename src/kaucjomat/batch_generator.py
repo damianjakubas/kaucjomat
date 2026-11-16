@@ -199,7 +199,8 @@ def generate_batch_log_dataset(
     try:
         target_dir.mkdir(parents=True, exist_ok=True)
         for stale_file in target_dir.glob("batch_returns_*.log"):
-            stale_file.unlink()
+            if stale_file.is_file():
+                stale_file.unlink()
     except OSError as exc:
         raise BatchLogAnalysisError(
             f"Nie udało się przygotować katalogu logów wsadowych: {target_dir}"

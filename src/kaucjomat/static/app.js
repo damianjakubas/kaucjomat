@@ -13,6 +13,10 @@ const errorMessagesBySource = {
   returnsSession: "",
   returnsAction: "",
   returnsVoucher: "",
+  checkoutContext: "",
+  checkoutQuote: "",
+  checkoutAction: "",
+  checkoutStorage: "",
 };
 
 /**
@@ -155,6 +159,7 @@ function selectView(viewId) {
   }
 
   void fetchViewMetadata(targetId);
+  window.dispatchEvent(new CustomEvent("kaucjomat:view-selected", { detail: { viewId: targetId } }));
 }
 
 /**

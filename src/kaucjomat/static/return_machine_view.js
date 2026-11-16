@@ -132,7 +132,7 @@ function renderSessionState(session) {
   const canIssue = Boolean(session.can_issue_voucher);
   const issueBtn = document.getElementById("issue-voucher-btn");
   if (issueBtn) {
-    issueBtn.disabled = !canIssue;
+    issueBtn.disabled = !canIssue || window.KaucjomatDemo.busy;
     issueBtn.dataset.canIssue = canIssue ? "true" : "false";
     issueBtn.dataset.sessionId = session.session_id || "";
   }

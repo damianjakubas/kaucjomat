@@ -8,13 +8,17 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Final
 
-from kaucjomat.checkout_catalog import get_checkout_product
+from kaucjomat.checkout_catalog import get_checkout_product, get_glass_return_spec
 from kaucjomat.checkout_exceptions import BasketTooSmallError, InvalidCheckoutRequestError
 from kaucjomat.checkout_guards import require_active_voucher
 from kaucjomat.voucher_domain import VoucherRecord, VoucherStatus
 
 MAX_BASKET_ITEMS: Final[int] = 20
 MAX_ITEM_QUANTITY: Final[int] = 99
+MAX_GLASS_COUNT: Final[int] = get_glass_return_spec().max_quantity
+GLASS_UNIT_DEPOSIT_GROSZE: Final[int] = get_glass_return_spec().unit_deposit_grosze
+GLASS_MAX_VOLUME_ML: Final[int] = get_glass_return_spec().max_volume_ml
+DEFAULT_GLASS_VOLUME_ML: Final[int] = 500
 
 
 class RedemptionMode(StrEnum):
@@ -111,6 +115,40 @@ class Basket:
 
 
 @dataclass(frozen=True, slots=True)
+class GlassReturn:
+    """Zwrot określonej liczby butelek szklanych wielokrotnego użytku do 1,5 l."""
+
+    count: int = 0
+    volume_ml: int = DEFAULT_GLASS_VOLUME_ML
+
+    def __post_init__(self) -> None:
+        """Sprawdza liczbę sztuk oraz pojemność butelek, jeżeli szkło jest zwracane."""
+        # bool nie jest liczbą sztuk ani pojemnością, mimo dziedziczenia po int.
+        if type(self.count) is not int or not 0 <= self.count <= MAX_GLASS_COUNT:
+            raise InvalidCheckoutRequestError(
+                "Liczba butelek szklanych DEMO musi być liczbą całkowitą 0–20."
+            )
+        if self.count > 0 and (
+            type(self.volume_ml) is not int or not 1 <= self.volume_ml <= GLASS_MAX_VOLUME_ML
+        ):
+            raise InvalidCheckoutRequestError(
+                "Pojemność butelki szklanej DEMO musi być całkowita: 1–1500 ml (do 1,5 l)."
+            )
+
+    @classmethod
+    def from_count(
+        cls, count: int = 0, *, volume_ml: int = DEFAULT_GLASS_VOLUME_ML,
+    ) -> GlassReturn:
+        """Tworzy zwalidowany zwrot szkła z liczby sztuk i wspólnej pojemności butelek."""
+        return cls(count=count, volume_ml=volume_ml)
+
+    @property
+    def total_grosze(self) -> int:
+        """Oblicza kaucję za oddawane szkło w całkowitych groszach."""
+        return self.count * GLASS_UNIT_DEPOSIT_GROSZE
+
+
+@dataclass(frozen=True, slots=True)
 class SettlementItem:
     """Niezmienna migawka produktu, ilości i ceny w zakończonym rozliczeniu DEMO."""
 
@@ -135,6 +173,8 @@ class SettlementResult:
     redeemed_at_iso: str
     voucher_status: VoucherStatus = VoucherStatus.REDEEMED
     mode: str = "DEMO"
+    glass_count: int = 0
+    glass_return_grosze: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,8 +194,11 @@ class VoucherSettlement:
         object.__setattr__(self, "now", self.now.astimezone(UTC))
 
     @require_active_voucher
-    def settle(self, redemption_mode: RedemptionMode | str, basket: Basket) -> SettlementResult:
-        """Oblicza zakupy lub pełną wypłatę bonu DEMO bez zapisu ani potwierdzania płatności."""
+    def settle(
+        self, redemption_mode: RedemptionMode | str, basket: Basket,
+        glass_return: GlassReturn | int = 0,
+    ) -> SettlementResult:
+        """Rozlicza bon DEMO i opcjonalny zwrot szkła na zakupy lub pełną wypłatę gotówki."""
         try:
             mode = RedemptionMode(redemption_mode)
         except (ValueError, TypeError) as exc:
@@ -164,6 +207,8 @@ class VoucherSettlement:
             raise InvalidCheckoutRequestError("Rozliczenie DEMO wymaga poprawnego koszyka.")
         if mode == RedemptionMode.CASH and basket.items:
             raise InvalidCheckoutRequestError("Wypłata gotówki DEMO wymaga pustej listy pozycji.")
+        glass = glass_return if isinstance(glass_return, GlassReturn) else GlassReturn.from_count(glass_return)
+        glass_total = glass.total_grosze
 
         # Kopiujemy wartości, aby późniejsza edycja koszyka nie zmieniała historycznego wyniku.
         items = tuple(
@@ -173,15 +218,20 @@ class VoucherSettlement:
         )
         total = sum(item.line_total_grosze for item in items)
         amount = self.voucher.amount_grosze
-        if mode == RedemptionMode.PURCHASES and total < amount:
-            raise BasketTooSmallError("Koszyk DEMO ma wartość mniejszą od bonu; wybierz wypłatę gotówki.")
+        if mode == RedemptionMode.PURCHASES and total < amount + glass_total:
+            raise BasketTooSmallError(
+                "Koszyk DEMO ma wartość mniejszą niż suma bonu i zwróconego szkła; "
+                "wybierz wypłatę gotówki."
+            )
         return SettlementResult(
             voucher_code=self.voucher.voucher_code,
             redemption_mode=mode,
             items=items,
             basket_total_grosze=total,
             voucher_amount_grosze=amount,
-            amount_due_grosze=total - amount if mode == RedemptionMode.PURCHASES else 0,
-            cash_payout_grosze=amount if mode == RedemptionMode.CASH else 0,
+            amount_due_grosze=total - amount - glass_total if mode == RedemptionMode.PURCHASES else 0,
+            cash_payout_grosze=amount + glass_total if mode == RedemptionMode.CASH else 0,
             redeemed_at_iso=self.now.isoformat(),
+            glass_count=glass.count,
+            glass_return_grosze=glass_total,
         )

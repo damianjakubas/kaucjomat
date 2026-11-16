@@ -24,7 +24,12 @@ from kaucjomat.voucher_state_codec import (
 
 def settlement_to_dict(result: SettlementResult) -> dict[str, Any]:
     """Serializuje niezmienną migawkę rozliczenia na niezależny obiekt JSON."""
+    # Do rozszerzenia kodeka zachowujemy format v2 bez szkła i nie gubimy dodatniej kaucji.
+    if result.glass_count != 0 or result.glass_return_grosze != 0:
+        raise ValueError("Trwały zapis zwrotu szkła DEMO nie jest jeszcze obsługiwany.")
     payload = asdict(result)
+    payload.pop("glass_count")
+    payload.pop("glass_return_grosze")
     payload["items"] = [asdict(item) for item in result.items]
     payload["redemption_mode"] = result.redemption_mode.value
     payload["voucher_status"] = result.voucher_status.value

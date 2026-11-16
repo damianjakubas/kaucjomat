@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 from uuid import UUID
 
-from kaucjomat.checkout_domain import MAX_BASKET_ITEMS, MAX_ITEM_QUANTITY, RedemptionMode
+from kaucjomat.checkout_domain import MAX_BASKET_ITEMS, MAX_GLASS_COUNT, MAX_ITEM_QUANTITY, RedemptionMode
 from kaucjomat.checkout_exceptions import InvalidCheckoutRequestError
 
 
@@ -49,11 +49,21 @@ def canonical_items(items: Sequence[Mapping[str, object]]) -> list[dict[str, Any
     return sorted(lines, key=lambda item: item["product_id"])
 
 
+def canonical_glass_count(value: object) -> int:
+    """Wymaga całkowitej liczby zwracanych butelek 0–20, odrzucając także bool."""
+    if type(value) is not int or not 0 <= value <= MAX_GLASS_COUNT:
+        raise InvalidCheckoutRequestError(
+            "Liczba butelek szklanych DEMO musi być liczbą całkowitą 0–20."
+        )
+    return value
+
+
 def canonical_request(
     demo_generation_id: str,
     voucher_code: str,
     redemption_mode: RedemptionMode | str,
     items: Sequence[Mapping[str, object]],
+    glass_count: int = 0,
 ) -> dict[str, Any]:
     """Kopiuje i waliduje treść żądania bez odczytu katalogu potrzebnego dopiero nowej operacji."""
     generation = canonical_uuid(demo_generation_id, "demo_generation_id")
@@ -70,4 +80,5 @@ def canonical_request(
         "voucher_code": code,
         "redemption_mode": mode.value,
         "items": lines,
+        "glass_count": canonical_glass_count(glass_count),
     }

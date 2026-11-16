@@ -2,6 +2,8 @@
 window.KaucjomatCheckoutContract = (() => {
   const money = (value) => Number.isSafeInteger(value) && value >= 0;
   const text = (value) => typeof value === "string" && value.length > 0;
+  /** Liczba butelek jest całkowita i mieści się w limicie jednej transakcji DEMO. */
+  const glassCountValid = (value) => Number.isInteger(value) && value >= 0 && value <= 20;
   const uuid = (value) => typeof value === "string"
     && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value);
   const canonical = (items) => [...items].sort((a, b) => a.product_id.localeCompare(b.product_id));
@@ -22,8 +24,10 @@ window.KaucjomatCheckoutContract = (() => {
   }
 
   /** Sprawdza wszystkie pola wyceny oraz arytmetykę migawki otrzymanej z backendu. */
-  function quoteValid(quote, generation, items) {
+  function quoteValid(quote, generation, items, glassCount = 0) {
     return quote?.mode === "DEMO" && quote.demo_generation_id === generation
+      && glassCountValid(glassCount) && quote.glass_count === glassCount
+      && quote.glass_return_grosze === glassCount * 100 && text(quote.glass_return_formatted)
       && sameItems(quote.items, items) && money(quote.basket_total_grosze)
       && text(quote.basket_total_formatted)
       && quote.items.every((item) => text(item.name) && money(item.unit_price_grosze)
@@ -38,6 +42,7 @@ window.KaucjomatCheckoutContract = (() => {
       && text(request.voucher_code) && request.voucher_code.length <= 64
       && request.voucher_code === request.voucher_code.trim().toUpperCase()
       && ["purchases", "cash"].includes(request.redemption_mode) && itemsValid(request.items)
+      && glassCountValid(request.glass_count)
       && (request.redemption_mode !== "cash" || request.items.length === 0);
   }
 
@@ -46,7 +51,7 @@ window.KaucjomatCheckoutContract = (() => {
     if (!requestValid(request) || payload?.mode !== "DEMO" || !text(payload.message)
       || typeof payload.was_idempotent_replay !== "boolean") return false;
     const result = payload.settlement;
-    if (!result || !quoteValid(result, request.demo_generation_id, request.items)
+    if (!result || !quoteValid(result, request.demo_generation_id, request.items, request.glass_count)
       || result.operation_id !== request.operation_id || result.voucher_code !== request.voucher_code
       || result.redemption_mode !== request.redemption_mode || result.voucher_status !== "ZUŻYTY"
       || !text(result.redeemed_at_iso) || !Number.isFinite(Date.parse(result.redeemed_at_iso))) return false;
@@ -55,14 +60,18 @@ window.KaucjomatCheckoutContract = (() => {
     }
     return result.voucher_amount_grosze > 0 && (request.redemption_mode === "cash"
       ? result.basket_total_grosze === 0 && result.amount_due_grosze === 0
-        && result.cash_payout_grosze === result.voucher_amount_grosze
+        && result.cash_payout_grosze === result.voucher_amount_grosze + result.glass_return_grosze
       : result.cash_payout_grosze === 0
-        && result.amount_due_grosze === result.basket_total_grosze - result.voucher_amount_grosze);
+        && result.basket_total_grosze >= result.voucher_amount_grosze + result.glass_return_grosze
+        && result.amount_due_grosze === result.basket_total_grosze - result.voucher_amount_grosze - result.glass_return_grosze);
   }
 
   /** Kontekst bez kompletnego katalogu i listy nie pozwala rozpocząć nowej realizacji. */
   function contextValid(payload) {
+    const glass = payload?.glass_return_spec;
     return payload?.mode === "DEMO" && uuid(payload.demo_generation_id)
+      && glass && text(glass.title) && glass.unit_deposit_grosze === 100
+      && text(glass.unit_deposit_formatted) && glass.max_volume_ml === 1500 && glass.max_quantity === 20
       && Array.isArray(payload.products) && payload.products.length > 0
       && payload.products.every((item) => text(item.product_id) && text(item.name)
         && money(item.unit_price_grosze) && text(item.unit_price_formatted))
@@ -72,5 +81,5 @@ window.KaucjomatCheckoutContract = (() => {
         && text(voucher.issued_at_iso) && text(voucher.expires_at_iso));
   }
 
-  return { uuid, itemsValid, sameItems, quoteValid, requestValid, resultValid, contextValid };
+  return { uuid, glassCountValid, itemsValid, sameItems, quoteValid, requestValid, resultValid, contextValid };
 })();

@@ -173,6 +173,8 @@
             <h3 id="checkout-basket-heading">Twój koszyk</h3>
             <ul id="checkout-basket" aria-labelledby="checkout-basket-heading"></ul>
             <p class="checkout-total"><span>Suma zakupów</span><strong id="checkout-total">—</strong></p>
+            <div id="checkout-glass" class="checkout-glass" role="group" aria-label="Zwrot szkła wielokrotnego użytku DEMO"></div>
+            <p class="checkout-total"><span>Zwrot szkła DEMO</span><strong id="checkout-glass-total" aria-live="polite">—</strong></p>
             <p id="checkout-quote-state" class="checkout-hint" role="status"></p>
           </section>
           <section class="checkout-card" aria-labelledby="checkout-vouchers-heading">
@@ -182,7 +184,7 @@
             <ul id="checkout-vouchers" aria-labelledby="checkout-vouchers-heading"><li>Ładowanie bonów…</li></ul>
             <label for="checkout-code">Kod bonu DEMO</label>
             <input id="checkout-code" type="text" maxlength="64" autocomplete="off" spellcheck="false" aria-describedby="checkout-mode-hint">
-            <p id="checkout-mode-hint" class="checkout-hint">Zakupy: koszyk musi pokrywać wartość bonu. Gotówka: pełna wypłata bonu, koszyk pozostaje nierozliczony.</p>
+            <p id="checkout-mode-hint" class="checkout-hint">Zakupy: koszyk musi pokrywać sumę bonu i zwróconego szkła (+1,00 zł/szt.). Gotówka: szkło powiększa wypłatę DEMO, koszyk pozostaje nierozliczony.</p>
             <div class="checkout-actions">
               <button type="button" id="checkout-purchases" disabled>Na zakupy</button>
               <button type="button" id="checkout-cash" disabled>Wypłać gotówkę</button>

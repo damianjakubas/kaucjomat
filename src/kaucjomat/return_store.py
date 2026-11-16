@@ -89,15 +89,17 @@ class ReturnStateStore:
     def redeem_voucher(
         self, operation_id: str, demo_generation_id: str, voucher_code: str,
         redemption_mode: RedemptionMode | str, items: Sequence[Mapping[str, object]],
+        glass_count: int = 0,
     ) -> tuple[SettlementResult, bool]:
         """Zużywa bon i zapisuje wynik w jednej transakcji albo odtwarza wcześniejszy wynik."""
         with self._lock:
             try:
-                state, _, _, _ = self._load_state()
+                state, _, _, needs_save = self._load_state()
                 result, replayed = prepare_redemption(
-                    state, operation_id, demo_generation_id, voucher_code, redemption_mode, items,
+                    state, operation_id, demo_generation_id, voucher_code, redemption_mode, items, glass_count,
                 )
-                if not replayed:
+                # Starszy replay utrwala migrację; odmowa przygotowania nie zapisuje pliku.
+                if not replayed or needs_save:
                     self._save_state(state)
             except ReturnStateStorageError:
                 raise  # Odczyt i zapis rejestrują awarię, bez potwierdzania realizacji.
@@ -108,10 +110,11 @@ class ReturnStateStore:
                 )
                 raise
             self._logger.info(
-                "%s bonu DEMO %s (%s): do zapłaty %d gr, wypłata %d gr.",
+                "%s bonu DEMO %s (%s): do zapłaty %d gr, wypłata %d gr, szkło %d szt. (%d gr).",
                 "Odtworzono wynik realizacji" if replayed else "Zapisano realizację",
                 sanitize_for_log(result.voucher_code), sanitize_for_log(result.redemption_mode),
                 result.amount_due_grosze, result.cash_payout_grosze,
+                result.glass_count, result.glass_return_grosze,
             )
             return result, replayed
 

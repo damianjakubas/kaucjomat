@@ -16,6 +16,9 @@
 .checkout-voucher button { text-align: left; overflow-wrap: anywhere; max-width: 100%; }
 .checkout-voucher p, .checkout-hint { font-size: 0.84rem; color: var(--text-muted); }
 .checkout-total { display: flex; flex-wrap: wrap; justify-content: space-between; font-size: 1.15rem; gap: 10px; }
+.checkout-glass { padding: 8px 12px; border: 1px solid var(--border-soft); border-radius: 8px; background: var(--bg-subtle); }
+.checkout-glass .checkout-row { border-bottom: 0; }
+.checkout-glass .checkout-quantity { flex-shrink: 0; }
 #checkout-message { border-left: 4px solid var(--accent-primary); padding: 10px; background: var(--bg-subtle); }
 #checkout-pending { background: var(--demo-bg); border: 1px solid var(--demo-border); padding: 12px; border-radius: 8px; }
 #checkout-result { margin-top: 18px; border: 2px solid var(--accent-primary); }

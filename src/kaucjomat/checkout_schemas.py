@@ -5,7 +5,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from kaucjomat.checkout_domain import MAX_BASKET_ITEMS, MAX_ITEM_QUANTITY, RedemptionMode
+from kaucjomat.checkout_domain import (
+    MAX_BASKET_ITEMS, MAX_GLASS_COUNT, MAX_ITEM_QUANTITY, RedemptionMode,
+)
 from kaucjomat.voucher_schemas import VoucherSchema
 
 
@@ -23,6 +25,7 @@ class CheckoutQuoteRequest(BaseModel):
     model_config: ConfigDict = ConfigDict(extra="forbid")
     demo_generation_id: UUID = Field(description="Generacja odczytana z kontekstu kasy DEMO.")
     items: list[CheckoutItemInput] = Field(max_length=MAX_BASKET_ITEMS)
+    glass_count: int = Field(default=0, strict=True, ge=0, le=MAX_GLASS_COUNT)
 
 
 class CheckoutRedemptionRequest(CheckoutQuoteRequest):
@@ -50,6 +53,16 @@ class CheckoutItemSchema(CheckoutProductSchema):
     line_total_formatted: str
 
 
+class CheckoutGlassSpecSchema(BaseModel):
+    """Zasady ręcznego przyjęcia szkła zwrotnego w kasie DEMO."""
+
+    title: str
+    unit_deposit_grosze: int
+    unit_deposit_formatted: str
+    max_volume_ml: int
+    max_quantity: int
+
+
 class CheckoutContextResponse(BaseModel):
     """Katalog oraz bony i generacja z jednego odczytu wspólnego magazynu."""
 
@@ -57,6 +70,7 @@ class CheckoutContextResponse(BaseModel):
     demo_generation_id: UUID
     products: list[CheckoutProductSchema]
     vouchers: list[VoucherSchema]
+    glass_return_spec: CheckoutGlassSpecSchema
 
 
 class CheckoutQuoteResponse(BaseModel):
@@ -67,6 +81,9 @@ class CheckoutQuoteResponse(BaseModel):
     items: list[CheckoutItemSchema]
     basket_total_grosze: int
     basket_total_formatted: str
+    glass_count: int
+    glass_return_grosze: int
+    glass_return_formatted: str
 
 
 class CheckoutSettlementSchema(CheckoutQuoteResponse):

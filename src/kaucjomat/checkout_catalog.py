@@ -23,6 +23,29 @@ PRODUCTS: Final[tuple[CheckoutProduct, ...]] = (
 )
 
 
+@dataclass(frozen=True, slots=True)
+class GlassReturnSpec:
+    """Niezmienna specyfikacja szkła wielokrotnego użytku przyjmowanego w kasie DEMO."""
+
+    title: str
+    unit_deposit_grosze: int
+    max_volume_ml: int
+    max_quantity: int
+
+
+GLASS_RETURN_SPEC: Final[GlassReturnSpec] = GlassReturnSpec(
+    title="Butelka szklana wielokrotnego użytku do 1,5 l",
+    unit_deposit_grosze=100,
+    max_volume_ml=1500,
+    max_quantity=20,
+)
+
+
+def get_glass_return_spec() -> GlassReturnSpec:
+    """Zwraca stałe zasady przyjmowania zwrotnych butelek szklanych w kasie DEMO."""
+    return GLASS_RETURN_SPEC
+
+
 def get_checkout_products() -> tuple[CheckoutProduct, ...]:
     """Zwraca produkty DEMO w kolejności prezentowanej na półce kasy."""
     return PRODUCTS

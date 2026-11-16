@@ -2,11 +2,12 @@
 
 from fastapi import APIRouter
 
-from kaucjomat.checkout_catalog import get_checkout_products
-from kaucjomat.checkout_domain import Basket, BasketItem, SettlementItem
+from kaucjomat.checkout_catalog import get_checkout_products, get_glass_return_spec
+from kaucjomat.checkout_domain import Basket, BasketItem, GlassReturn, SettlementItem
 from kaucjomat.checkout_exceptions import DemoGenerationConflictError
 from kaucjomat.checkout_schemas import (
     CheckoutContextResponse,
+    CheckoutGlassSpecSchema,
     CheckoutItemSchema,
     CheckoutProductSchema,
     CheckoutQuoteRequest,
@@ -45,6 +46,7 @@ def create_checkout_router(store: ReturnStateStore) -> APIRouter:
     def read_checkout_context() -> CheckoutContextResponse:
         """Pobiera spójne bony i generację oraz katalog cen demonstracyjnych."""
         snapshot = store.get_checkout_snapshot()
+        glass_spec = get_glass_return_spec()
         return CheckoutContextResponse(
             demo_generation_id=snapshot.demo_generation_id,
             products=[CheckoutProductSchema(
@@ -52,6 +54,11 @@ def create_checkout_router(store: ReturnStateStore) -> APIRouter:
                 unit_price_formatted=format_pln_from_grosze(p.unit_price_grosze),
             ) for p in get_checkout_products()],
             vouchers=[to_voucher_schema(voucher) for voucher in snapshot.vouchers],
+            glass_return_spec=CheckoutGlassSpecSchema(
+                title=glass_spec.title, unit_deposit_grosze=glass_spec.unit_deposit_grosze,
+                unit_deposit_formatted=format_pln_from_grosze(glass_spec.unit_deposit_grosze),
+                max_volume_ml=glass_spec.max_volume_ml, max_quantity=glass_spec.max_quantity,
+            ),
         )
 
     @router.post("/quote", response_model=CheckoutQuoteResponse)
@@ -61,11 +68,14 @@ def create_checkout_router(store: ReturnStateStore) -> APIRouter:
         if str(payload.demo_generation_id) != snapshot.demo_generation_id:
             raise DemoGenerationConflictError("Pokaz DEMO został zresetowany; odśwież dane kasy.")
         basket = Basket.from_items([item.model_dump() for item in payload.items])
+        glass = GlassReturn.from_count(payload.glass_count)
         return CheckoutQuoteResponse(
             demo_generation_id=payload.demo_generation_id,
             items=[_to_item_schema(item) for item in basket.items],
             basket_total_grosze=basket.total_grosze,
             basket_total_formatted=format_pln_from_grosze(basket.total_grosze),
+            glass_count=glass.count, glass_return_grosze=glass.total_grosze,
+            glass_return_formatted=format_pln_from_grosze(glass.total_grosze),
         )
 
     @router.post("/redeem", response_model=CheckoutRedemptionResponse)
@@ -77,6 +87,7 @@ def create_checkout_router(store: ReturnStateStore) -> APIRouter:
             voucher_code=payload.voucher_code,
             redemption_mode=payload.redemption_mode,
             items=[item.model_dump() for item in payload.items],
+            glass_count=payload.glass_count,
         )
         settlement = CheckoutSettlementSchema(
             operation_id=payload.operation_id, demo_generation_id=payload.demo_generation_id,
@@ -91,6 +102,8 @@ def create_checkout_router(store: ReturnStateStore) -> APIRouter:
             amount_due_formatted=format_pln_from_grosze(result.amount_due_grosze),
             cash_payout_grosze=result.cash_payout_grosze,
             cash_payout_formatted=format_pln_from_grosze(result.cash_payout_grosze),
+            glass_count=result.glass_count, glass_return_grosze=result.glass_return_grosze,
+            glass_return_formatted=format_pln_from_grosze(result.glass_return_grosze),
         )
         message = (
             "Przywrócono poprzedni wynik DEMO — nie wykonano ponownego rozliczenia."
@@ -98,6 +111,11 @@ def create_checkout_router(store: ReturnStateStore) -> APIRouter:
             if result.redemption_mode == "purchases"
             else "Wypłacono pełną wartość bonu DEMO; zakupy pozostają nierozliczone."
         )
+        if result.glass_count > 0:
+            message += (
+                f" Uwzględniono zwrot szkła DEMO: {result.glass_count} szt. "
+                f"({format_pln_from_grosze(result.glass_return_grosze)})."
+            )
         return CheckoutRedemptionResponse(
             message=message, was_idempotent_replay=replayed, settlement=settlement,
         )

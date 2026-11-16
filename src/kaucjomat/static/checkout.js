@@ -29,7 +29,7 @@
   /** Odtwarza ekran z jednej spójnej lokalnej migawki. */
   function render() {
     const state = store.read();
-    view.basket(state, context?.products || [], quote);
+    view.basket(state, context?.products || [], quote, context?.glass_return_spec);
     view.result(state.result);
     controls();
   }
@@ -87,7 +87,7 @@
     }
   }
 
-  /** Wycena dotyczy wyłącznie bieżącego koszyka; gotówka na nią nie czeka. */
+  /** Wycena obejmuje bieżący koszyk i szkło; gotówka na nią nie czeka. */
   async function loadQuote() {
     const state = store.read();
     if (!context || demo.busy) return;
@@ -96,22 +96,33 @@
     controls();
     try {
       const { response, payload } = await fetchJson("/api/checkout/quote", {
-        demo_generation_id: state.generation, items: state.basket,
+        demo_generation_id: state.generation, items: state.basket, glass_count: state.glassCount,
       });
       if (!demo.current(ticket)) return;
       if (payload?.error_code === "DEMO_GENERATION_CONFLICT") { void loadContext(); return; }
-      if (!response.ok || !contract.quoteValid(payload, state.generation, state.basket)) {
+      if (!response.ok || !contract.quoteValid(payload, state.generation, state.basket, state.glassCount)) {
         throw new Error(payload?.message || "Niepełna wycena koszyka.");
       }
       quote = payload;
       error("", "checkoutQuote");
-      view.basket(store.read(), context.products, quote);
+      view.basket(store.read(), context.products, quote, context.glass_return_spec);
       controls();
     } catch (failure) {
       if (!demo.current(ticket)) return;
       error(`Nie można wycenić koszyka: ${failure.message}`, "checkoutQuote");
       controls();
     }
+  }
+
+  /** Zapisuje liczbę przyjmowanych butelek przed zleceniem nowej wyceny. */
+  function editGlass(delta) {
+    const state = store.read();
+    if (demo.busy || state.pending || !context || store.fault) return;
+    state.glassCount = Math.max(0, Math.min(context.glass_return_spec.max_quantity, state.glassCount + delta));
+    if (!save(state)) return;
+    quote = null;
+    render();
+    void loadQuote();
   }
 
   /** Edytuje ilości i zapisuje koszyk przed zleceniem nowej wyceny. */
@@ -145,7 +156,8 @@
     const code = state.code.trim().toUpperCase();
     if (!code) return;
     const pending = { operation_id: crypto.randomUUID(), demo_generation_id: state.generation,
-      voucher_code: code, redemption_mode: mode, items: mode === "cash" ? [] : state.basket };
+      voucher_code: code, redemption_mode: mode, items: mode === "cash" ? [] : state.basket,
+      glass_count: state.glassCount };
     if (!save({ ...state, pending })) return;
     await retry();
   }
@@ -161,8 +173,10 @@
       if (response.ok && contract.resultValid(payload, pending)) {
         const state = store.read();
         const next = { ...state, result: payload, pending: null, lastApplied: pending.operation_id,
+          glassCount: state.lastApplied !== pending.operation_id ? 0 : state.glassCount,
           basket: pending.redemption_mode === "purchases" && state.lastApplied !== pending.operation_id ? [] : state.basket };
         if (!save(next)) throw new Error("Wynik serwera wymaga ponownego odzyskania z powodu błędu zapisu karty.");
+        quote = null; // Wyzeruj poprzednią wycenę przed odświeżeniem kontekstu z serwera.
         node("checkout-message").textContent = payload.message;
         error("", "checkoutAction");
         render();
@@ -188,6 +202,7 @@
       demo.end("redemption");
       controls();
       (focusResult ? node("checkout-result") : node("checkout-message")).focus({ preventScroll: true });
+      if (focusResult) void loadContext();
     }
   }
 
@@ -215,6 +230,7 @@
       if (!target || target.disabled) return;
       const action = target.dataset.checkoutAction;
       if (action === "voucher") { selectCode(target.dataset.voucherCode); node("checkout-code").focus(); }
+      else if (action === "glass-add" || action === "glass-remove") editGlass(action === "glass-add" ? 1 : -1);
       else editBasket(target.dataset.productId, action === "add" ? 1 : -1);
     });
     node("checkout-code").addEventListener("input", (event) => selectCode(event.target.value));

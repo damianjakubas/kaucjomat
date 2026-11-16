@@ -22,9 +22,11 @@ import pytest
     {"items": [{"product_id": "bread-roll", "quantity": 2, "unit_price_grosze": 1}]},
     {"items": [{"product_id": "bread-roll", "quantity": 2, "line_total_grosze": 1}]},
     {"basket_total_grosze": 1}, {"amount_due_grosze": 0},
+    {"glass_return_grosze": 1}, {"glass_return_formatted": "0,01 zł"},
     {"items": [{"product_id": "bread-roll", "quantity": 1}] * 21},
 ] + [{"items": [{"product_id": "bread-roll", "quantity": q}]}
-     for q in (None, True, False, 1.0, 1.5, "2", 0, -1, 100)])
+     for q in (None, True, False, 1.0, 1.5, "2", 0, -1, 100)]
+    + [{"glass_count": count} for count in (-1, 21, True, False, 1.0, 1.5, "1", None, [], {})])
 def test_structural_errors_are_422_without_writing(
     checkout_client: TestClient, checkout_request: dict[str, Any], checkout_file: Path,
     endpoint: str, changes: dict[str, Any],
@@ -123,6 +125,9 @@ def test_missing_or_malformed_json_returns_standard_error(
     ({"items": [{"product_id": " bread-roll ", "quantity": 2}]}, 400, "INVALID_CHECKOUT_REQUEST"),
     ({"items": [{"product_id": "bread-roll", "quantity": 1}] * 2}, 400, "INVALID_CHECKOUT_REQUEST"),
     ({"redemption_mode": "cash"}, 400, "INVALID_CHECKOUT_REQUEST"),
+    ({"glass_count": 1}, 409, "BASKET_TOO_SMALL"),
+    ({"glass_count": 20}, 409, "BASKET_TOO_SMALL"),
+    ({"glass_count": 1, "redemption_mode": "cash"}, 400, "INVALID_CHECKOUT_REQUEST"),
 ])
 def test_business_errors_leave_voucher_and_file_unchanged(
     checkout_client: TestClient, checkout_request: dict[str, Any], checkout_file: Path,
@@ -136,10 +141,13 @@ def test_business_errors_leave_voucher_and_file_unchanged(
     assert response.json() == {"mode": "DEMO", "error_code": code,
                                "message": response.json()["message"], "detail": None}
     assert "DEMO" in response.json()["message"]
+    if changes.get("glass_count") and code == "BASKET_TOO_SMALL":
+        assert "suma bonu i zwróconego szkła" in response.json()["message"]
+        assert "wybierz wypłatę gotówki" in response.json()["message"]
     assert checkout_file.read_bytes() == before
 
 
-@pytest.mark.parametrize("field", ["voucher_code", "redemption_mode", "items", "operation_id"])
+@pytest.mark.parametrize("field", ["voucher_code", "redemption_mode", "items", "operation_id", "glass_count"])
 def test_changed_payload_and_new_operation_on_used_voucher_are_conflicts(
     checkout_client: TestClient, checkout_request: dict[str, Any], checkout_file: Path, field: str,
 ) -> None:
@@ -150,7 +158,8 @@ def test_changed_payload_and_new_operation_on_used_voucher_are_conflicts(
         checkout_request.update(redemption_mode="cash", items=[])
     else:
         checkout_request[field] = {"voucher_code": "NIEZNANY", "operation_id": str(uuid4()),
-                                   "items": [{"product_id": "nieznany", "quantity": 1}]}[field]
+                                   "items": [{"product_id": "nieznany", "quantity": 1}],
+                                   "glass_count": 1}[field]
     response = checkout_client.post("/api/checkout/redeem", json=checkout_request)
     assert response.status_code == 409
     assert response.json()["error_code"] == (

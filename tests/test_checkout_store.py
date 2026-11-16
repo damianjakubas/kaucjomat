@@ -21,13 +21,15 @@ from kaucjomat.voucher_domain import VoucherStatus
 
 
 @pytest.mark.parametrize("mode", ["purchases", "cash"])
+@pytest.mark.parametrize("glass_count", [0, 2, 20])
 def test_atomic_redemption_preserves_session_and_records_one_result(
     checkout_store: ReturnStateStore, checkout_file: Path, checkout_request: dict[str, Any],
-    monkeypatch: pytest.MonkeyPatch, mode: str,
+    monkeypatch: pytest.MonkeyPatch, mode: str, glass_count: int,
 ) -> None:
     """Jeden replace zapisuje zarazem status i wynik, zachowując pozostałe dane DEMO."""
     before = json.loads(checkout_file.read_bytes())
-    checkout_request.update(redemption_mode=mode, items=[] if mode == "cash" else checkout_request["items"])
+    items = [{"product_id": "bread-roll", "quantity": 2 + 2 * glass_count}]
+    checkout_request.update(redemption_mode=mode, items=[] if mode == "cash" else items, glass_count=glass_count)
     replacements: list[Path] = []
     original_replace = Path.replace
 
@@ -42,8 +44,9 @@ def test_atomic_redemption_preserves_session_and_records_one_result(
     assert replacements == [checkout_file] and replayed is False
     assert result.mode == "DEMO" and result.voucher_status == VoucherStatus.REDEEMED
     assert result.voucher_amount_grosze == 100 and result.amount_due_grosze == 0
-    assert result.cash_payout_grosze == (100 if mode == "cash" else 0)
-    assert result.basket_total_grosze == (0 if mode == "cash" else 100)
+    assert result.cash_payout_grosze == (100 + glass_count * 100 if mode == "cash" else 0)
+    assert result.basket_total_grosze == (0 if mode == "cash" else 100 + glass_count * 100)
+    assert result.glass_count == glass_count and result.glass_return_grosze == glass_count * 100
     assert saved["vouchers"][0]["status"] == "ZUŻYTY"
     assert saved["vouchers"][0]["redeemed_at_iso"] == result.redeemed_at_iso
     assert len(saved["checkout_redemptions"]) == 1
@@ -51,6 +54,8 @@ def test_atomic_redemption_preserves_session_and_records_one_result(
     assert entry["operation_id"] == checkout_request["operation_id"]
     assert entry["demo_generation_id"] == checkout_request["demo_generation_id"]
     assert entry["result"]["redemption_mode"] == mode
+    assert entry["request"]["glass_count"] == entry["result"]["glass_count"] == glass_count
+    assert entry["result"]["glass_return_grosze"] == glass_count * 100
     for key in ("session", "returned_instance_ids", "demo_generation_id"):
         assert saved[key] == before[key]
     assert checkout_store.list_vouchers()[0].status == VoucherStatus.REDEEMED
@@ -58,12 +63,14 @@ def test_atomic_redemption_preserves_session_and_records_one_result(
 
 @pytest.mark.parametrize("mode", ["purchases", "cash"])
 @pytest.mark.parametrize("catalog_change", ["prices", "removed"])
+@pytest.mark.parametrize("glass_count", [0, 2])
 def test_replay_survives_restart_expiry_and_catalog_removal(
     checkout_store: ReturnStateStore, checkout_request: dict[str, Any], checkout_file: Path,
-    monkeypatch: pytest.MonkeyPatch, mode: str, catalog_change: str,
+    monkeypatch: pytest.MonkeyPatch, mode: str, catalog_change: str, glass_count: int,
 ) -> None:
     """Zapisany wynik nie zależy od czasu, cen, nazw ani dalszego istnienia produktu."""
-    checkout_request.update(redemption_mode=mode, items=[] if mode == "cash" else checkout_request["items"])
+    items = [{"product_id": "bread", "quantity": 1}]
+    checkout_request.update(redemption_mode=mode, items=[] if mode == "cash" else items, glass_count=glass_count)
     result, _ = checkout_store.redeem_voucher(**checkout_request)
     before = checkout_file.read_bytes()
 
@@ -110,6 +117,7 @@ def test_normalized_uuid_code_and_item_order_identify_same_operation(
     ("items", [{"product_id": "bread-roll", "quantity": 3}], "CHECKOUT_OPERATION_CONFLICT"),
     ("operation_id", str(uuid4()), "VOUCHER_ALREADY_REDEEMED"),
     ("demo_generation_id", str(uuid4()), "DEMO_GENERATION_CONFLICT"),
+    ("glass_count", 1, "CHECKOUT_OPERATION_CONFLICT"),
 ])
 def test_changed_operation_is_refused_without_write(
     checkout_store: ReturnStateStore, checkout_request: dict[str, Any], checkout_file: Path,
@@ -137,6 +145,14 @@ def test_changed_operation_is_refused_without_write(
     ({"items": [{"product_id": "bread-roll", "quantity": 2, "price": 100}]}, "INVALID_CHECKOUT_REQUEST"),
     ({"operation_id": "błędny-uuid"}, "INVALID_CHECKOUT_REQUEST"),
     ({"voucher_code": "   "}, "INVALID_CHECKOUT_REQUEST"),
+    ({"glass_count": 1}, "BASKET_TOO_SMALL"),
+    ({"glass_count": 21}, "INVALID_CHECKOUT_REQUEST"),
+    ({"glass_count": -1}, "INVALID_CHECKOUT_REQUEST"),
+    ({"glass_count": True}, "INVALID_CHECKOUT_REQUEST"),
+    ({"glass_count": False}, "INVALID_CHECKOUT_REQUEST"),
+    ({"glass_count": 1.0}, "INVALID_CHECKOUT_REQUEST"),
+    ({"glass_count": "1"}, "INVALID_CHECKOUT_REQUEST"),
+    ({"glass_count": None}, "INVALID_CHECKOUT_REQUEST"),
 ])
 def test_business_and_input_refusals_preserve_bytes(
     checkout_store: ReturnStateStore, checkout_request: dict[str, Any], checkout_file: Path,
@@ -151,11 +167,14 @@ def test_business_and_input_refusals_preserve_bytes(
     assert checkout_file.read_bytes() == before
 
 
+@pytest.mark.parametrize("glass_count", [0, 2])
 def test_replace_failure_cleans_temporary_file_and_allows_retry(
     checkout_store: ReturnStateStore, checkout_request: dict[str, Any], checkout_file: Path,
     monkeypatch: pytest.MonkeyPatch, checkout_logs: pytest.LogCaptureFixture,
+    glass_count: int,
 ) -> None:
     """Awaria podmiany nie publikuje sukcesu, nie zużywa bonu i nie pozostawia pliku tmp."""
+    checkout_request.update(glass_count=glass_count, items=[{"product_id": "bread", "quantity": 1}])
     before = checkout_file.read_bytes()
 
     def broken_replace(source: Path, destination: Path) -> Path:
@@ -198,6 +217,7 @@ def test_success_replay_and_sanitized_refusal_have_distinct_logs(
     checkout_store: ReturnStateStore, checkout_request: dict[str, Any], checkout_logs: pytest.LogCaptureFixture,
 ) -> None:
     """Log rozróżnia zapis, odtworzenie i odmowę oraz usuwa znaki sterujące wejścia."""
+    checkout_request.update(glass_count=2, items=[{"product_id": "bread", "quantity": 1}])
     checkout_store.redeem_voucher(**checkout_request)
     checkout_store.redeem_voucher(**checkout_request)
     checkout_request.update(operation_id=str(uuid4()), voucher_code="NIEZNANY\nFAŁSZYWY\tWPIS")
@@ -206,6 +226,7 @@ def test_success_replay_and_sanitized_refusal_have_distinct_logs(
     messages = [record.getMessage() for record in checkout_logs.records]
     assert sum("Zapisano realizację" in msg for msg in messages) == 1
     assert sum("Odtworzono wynik realizacji" in msg for msg in messages) == 1
+    assert sum("szkło 2 szt. (200 gr)" in msg for msg in messages) == 2
     refusals = [msg for msg in messages if "Odmowa realizacji" in msg]
     assert len(refusals) == 1 and "VOUCHER_NOT_FOUND" in refusals[0]
     assert "\n" not in refusals[0] and "\t" not in refusals[0]

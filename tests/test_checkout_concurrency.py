@@ -39,10 +39,13 @@ def _race_requests(
         return list(pool.map(submit, requests))
 
 
+@pytest.mark.parametrize("glass_count", [0, 2])
 def test_competing_cash_and_purchases_redeem_exactly_once(
     checkout_store: ReturnStateStore, checkout_request: dict[str, Any], checkout_file: Path,
+    glass_count: int,
 ) -> None:
     """Osiem różnych ID w dwóch trybach daje jeden wynik i siedem odmów zużytego bonu."""
+    checkout_request.update(glass_count=glass_count, items=[{"product_id": "bread", "quantity": 1}])
     requests = []
     for mode in ["cash", "purchases"] * 4:
         payload = deepcopy(checkout_request)
@@ -59,11 +62,13 @@ def test_competing_cash_and_purchases_redeem_exactly_once(
     assert saved["checkout_redemptions"][0]["result"]["redeemed_at_iso"] == successes[0][0].redeemed_at_iso
 
 
+@pytest.mark.parametrize("glass_count", [0, 2])
 def test_identical_parallel_operations_write_once_and_replay(
     checkout_store: ReturnStateStore, checkout_request: dict[str, Any], checkout_file: Path,
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, glass_count: int,
 ) -> None:
     """Wspólne ID i payload powodują jeden zapis i siedem identycznych odtworzeń."""
+    checkout_request.update(glass_count=glass_count, items=[{"product_id": "bread", "quantity": 1}])
     saved_states: list[dict[str, Any]] = []
     original_save = checkout_store._save_state
 
@@ -80,6 +85,26 @@ def test_identical_parallel_operations_write_once_and_replay(
     assert [r[1] for r in results].count(True) == 7
     assert len(saved_states) == 1
     assert len(json.loads(checkout_file.read_bytes())["checkout_redemptions"]) == 1
+
+
+@pytest.mark.parametrize("mode", ["purchases", "cash"])
+def test_same_id_with_competing_glass_counts_returns_conflicts(
+    checkout_store: ReturnStateStore, checkout_request: dict[str, Any], checkout_file: Path,
+    mode: str,
+) -> None:
+    """Różne liczby butelek pod wspólnym ID nie mogą nadpisać zwycięskiego rozliczenia."""
+    items = [{"product_id": "bread", "quantity": 1}] if mode == "purchases" else []
+    requests = [dict(checkout_request, redemption_mode=mode, items=items, glass_count=count)
+                for count in [1, 2] * 4]
+    results = _race_requests(checkout_store, requests)
+    successes = [result for result in results if isinstance(result, tuple)]
+    assert len(successes) == 4 and len({result[0] for result in successes}) == 1
+    assert [result[1] for result in successes].count(False) == 1
+    assert results.count("CHECKOUT_OPERATION_CONFLICT") == 4
+    entry, = json.loads(checkout_file.read_bytes())["checkout_redemptions"]
+    winner = successes[0][0]
+    assert entry["request"]["glass_count"] == entry["result"]["glass_count"] == winner.glass_count
+    assert entry["result"]["glass_return_grosze"] == winner.glass_count * 100
 
 
 def test_same_id_with_competing_payloads_returns_conflicts(

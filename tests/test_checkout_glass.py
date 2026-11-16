@@ -3,6 +3,7 @@
 from dataclasses import FrozenInstanceError, replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from uuid import uuid4
 
 import pytest
 
@@ -15,6 +16,7 @@ from kaucjomat.checkout_exceptions import (
     BasketTooSmallError, InvalidCheckoutRequestError, VoucherAlreadyRedeemedError, VoucherExpiredError,
 )
 from kaucjomat.checkout_state_codec import settlement_from_dict, settlement_to_dict
+from kaucjomat.checkout_request import canonical_glass_count, canonical_request
 from kaucjomat.voucher_domain import VoucherStatus, create_issued_voucher
 
 NOW = datetime(2026, 11, 16, 12, tzinfo=UTC)
@@ -165,21 +167,42 @@ def test_result_preserves_positional_constructor_compatibility() -> None:
 
 
 @pytest.mark.parametrize("mode", ["purchases", "cash"])
-def test_zero_glass_preserves_current_json_format_and_roundtrip(mode: str) -> None:
-    """Rozszerzenie domeny nie zmienia dotychczasowego zapisu ani ponownego odczytu bez szkła."""
-    basket = Basket.from_items([{"product_id": "apple", "quantity": 1}]) if mode == "purchases" else Basket()
-    result = _settlement().settle(mode, basket)
+@pytest.mark.parametrize("count", [0, 1, 20])
+def test_glass_json_roundtrip_preserves_full_settlement(mode: str, count: int) -> None:
+    """Oba tryby zapisują i odtwarzają kompletną migawkę, także przy zerowym zwrocie szkła."""
+    basket = Basket.from_items([{"product_id": "bread", "quantity": 6}]) if mode == "purchases" else Basket()
+    result = _settlement().settle(mode, basket, count)
     payload = settlement_to_dict(result)
-    assert "glass_count" not in payload and "glass_return_grosze" not in payload
+    assert payload["glass_count"] == count and payload["glass_return_grosze"] == count * 100
     assert settlement_from_dict(payload) == result
 
 
-def test_current_codec_rejects_positive_glass_instead_of_losing_deposit() -> None:
-    """Przejściowy kodek odmawia zapisu szkła do czasu wdrożenia pełnego kontraktu historii."""
-    result = _settlement().settle("cash", Basket(), GlassReturn(2))
-    with pytest.raises(ValueError, match="zapis zwrotu szkła"):
-        settlement_to_dict(result)
-    assert result.glass_count == 2 and result.glass_return_grosze == 200
+@pytest.mark.parametrize("count", [-1, 21, True, False, 1.0, 1.5, "1", None, [], {}])
+def test_canonical_request_rejects_invalid_glass_count(count: Any) -> None:
+    """Ścisła kanonizacja nie pozwala utożsamić bool ani float z zapisaną liczbą butelek."""
+    with pytest.raises(InvalidCheckoutRequestError):
+        canonical_glass_count(count)
+    with pytest.raises(InvalidCheckoutRequestError):
+        canonical_request(str(uuid4()), "BON-DEMO-0001", "cash", [], count)
+
+
+@pytest.mark.parametrize("mode", ["purchases", "cash"])
+@pytest.mark.parametrize("count", [0, 1, 20])
+def test_canonical_request_includes_glass_without_mutating_input(mode: str, count: int) -> None:
+    """Tożsamość żądania zawiera szkło w obu trybach oraz domyślne zero starszych wywołań."""
+    generation = str(uuid4())
+    items = [{"product_id": "bread", "quantity": 1}] if mode == "purchases" else []
+    request = canonical_request(generation, " bon-demo-0001 ", mode, items, count)
+    assert request["glass_count"] == canonical_glass_count(count) == count
+    assert request["voucher_code"] == "BON-DEMO-0001"
+    assert request["items"] == items and request["items"] is not items
+    assert canonical_request(generation, "BON-DEMO-0001", mode, items)["glass_count"] == 0
+
+
+def test_canonical_cash_with_glass_still_requires_empty_basket() -> None:
+    """Dodatni zwrot szkła nie zmienia zakazu zakupów w żądaniu wypłaty gotówki."""
+    with pytest.raises(InvalidCheckoutRequestError, match="pustej listy"):
+        canonical_request(str(uuid4()), "BON-DEMO-0001", "cash", [{"product_id": "bread", "quantity": 1}], 1)
 
 
 def test_glass_settlement_result_is_immutable_and_detached_from_basket() -> None:

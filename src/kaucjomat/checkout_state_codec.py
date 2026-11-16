@@ -7,7 +7,9 @@ from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
-from kaucjomat.checkout_domain import RedemptionMode, SettlementItem, SettlementResult
+from kaucjomat.checkout_domain import (
+    GLASS_UNIT_DEPOSIT_GROSZE, MAX_GLASS_COUNT, RedemptionMode, SettlementItem, SettlementResult,
+)
 from kaucjomat.checkout_request import (
     canonical_items, canonical_request, canonical_uuid, normalize_voucher_code,
 )
@@ -21,15 +23,17 @@ from kaucjomat.voucher_state_codec import (
     validate_voucher_lifecycle,
 )
 
+_REQUEST_FIELDS = {"demo_generation_id", "voucher_code", "redemption_mode", "items", "glass_count"}
+_RESULT_FIELDS = {
+    "voucher_code", "redemption_mode", "items", "basket_total_grosze", "voucher_amount_grosze",
+    "amount_due_grosze", "cash_payout_grosze", "redeemed_at_iso", "voucher_status", "mode",
+    "glass_count", "glass_return_grosze",
+}
+
 
 def settlement_to_dict(result: SettlementResult) -> dict[str, Any]:
     """Serializuje niezmienną migawkę rozliczenia na niezależny obiekt JSON."""
-    # Do rozszerzenia kodeka zachowujemy format v2 bez szkła i nie gubimy dodatniej kaucji.
-    if result.glass_count != 0 or result.glass_return_grosze != 0:
-        raise ValueError("Trwały zapis zwrotu szkła DEMO nie jest jeszcze obsługiwany.")
     payload = asdict(result)
-    payload.pop("glass_count")
-    payload.pop("glass_return_grosze")
     payload["items"] = [asdict(item) for item in result.items]
     payload["redemption_mode"] = result.redemption_mode.value
     payload["voucher_status"] = result.voucher_status.value
@@ -38,11 +42,7 @@ def settlement_to_dict(result: SettlementResult) -> dict[str, Any]:
 
 def settlement_from_dict(raw: dict[str, Any]) -> SettlementResult:
     """Odtwarza historyczne ceny i sumy, sprawdzając arytmetykę oraz ścisłe typy."""
-    expected = {
-        "voucher_code", "redemption_mode", "items", "basket_total_grosze", "voucher_amount_grosze",
-        "amount_due_grosze", "cash_payout_grosze", "redeemed_at_iso", "voucher_status", "mode",
-    }
-    if not isinstance(raw, dict) or set(raw) != expected:
+    if not isinstance(raw, dict) or set(raw) != _RESULT_FIELDS:
         raise ValueError("Niekompletna migawka realizacji DEMO.")
     if raw["mode"] != "DEMO" or raw["voucher_status"] != VoucherStatus.REDEEMED:
         raise ValueError("Wynik realizacji musi oznaczać zużycie bonu DEMO.")
@@ -75,25 +75,48 @@ def settlement_from_dict(raw: dict[str, Any]) -> SettlementResult:
     amount = require_int(raw, "voucher_amount_grosze", minimum=1)
     due = require_int(raw, "amount_due_grosze", minimum=0)
     payout = require_int(raw, "cash_payout_grosze", minimum=0)
+    glass_count = require_int(raw, "glass_count", minimum=0)
+    glass_return = require_int(raw, "glass_return_grosze", minimum=0)
+    if glass_count > MAX_GLASS_COUNT or glass_return != glass_count * GLASS_UNIT_DEPOSIT_GROSZE:
+        raise ValueError("Niespójny zwrot szkła w historii realizacji DEMO.")
     if total != sum(item.line_total_grosze for item in items):
         raise ValueError("Niezgodna suma koszyka w historii.")
     if mode == RedemptionMode.PURCHASES:
-        if total < amount or due != total - amount or payout != 0:
+        if total < amount + glass_return or due != total - amount - glass_return or payout != 0:
             raise ValueError("Niespójne kwoty zakupów historycznych.")
-    elif items or total != 0 or due != 0 or payout != amount:
+    elif items or total != 0 or due != 0 or payout != amount + glass_return:
         raise ValueError("Niespójne kwoty historycznej wypłaty.")
-    return SettlementResult(code, mode, tuple(items), total, amount, due, payout, timestamp)
+    return SettlementResult(
+        code, mode, tuple(items), total, amount, due, payout, timestamp,
+        glass_count=glass_count, glass_return_grosze=glass_return,
+    )
 
 
-def validate_checkout_state(state: dict[str, Any], *, migrating: bool) -> None:
+def _migrate_glass_return(entry: dict[str, Any]) -> bool:
+    """Uzupełnia wyłącznie kompletną parę starszego żądania i wyniku o zerowy zwrot szkła."""
+    request, result = entry["request"], entry["result"]
+    if not isinstance(request, dict) or not isinstance(result, dict):
+        raise ValueError("Żądanie i wynik historii realizacji muszą być obiektami.")
+    legacy_request = _REQUEST_FIELDS - {"glass_count"}
+    legacy_result = _RESULT_FIELDS - {"glass_count", "glass_return_grosze"}
+    # Nie naprawiamy częściowych rekordów: migracji podlega tylko dokładny starszy format.
+    if set(request) == legacy_request and set(result) == legacy_result:
+        request["glass_count"] = result["glass_count"] = result["glass_return_grosze"] = 0
+        return True
+    if "glass_count" not in request or not {"glass_count", "glass_return_grosze"} <= result.keys():
+        raise ValueError("Niekompletny zapis zwrotu szkła w historii realizacji.")
+    return False
+
+
+def validate_checkout_state(state: dict[str, Any], *, migrating: bool) -> bool:
     """Migruje pola kasy i sprawdza unikalność oraz powiązania historii z bonami."""
     try:
-        _validate_checkout_state(state, migrating=migrating)
+        return _validate_checkout_state(state, migrating=migrating)
     except KaucjomatError as exc:
         raise ValueError(f"Niepoprawny stan kasy DEMO: {exc.message}") from exc
 
 
-def _validate_checkout_state(state: dict[str, Any], *, migrating: bool) -> None:
+def _validate_checkout_state(state: dict[str, Any], *, migrating: bool) -> bool:
     """Waliduje całość historii jako jedną spójną generację bez wyceny katalogowej."""
     if migrating:
         if "demo_generation_id" in state or "checkout_redemptions" in state:
@@ -115,6 +138,7 @@ def _validate_checkout_state(state: dict[str, Any], *, migrating: bool) -> None:
         raise ValueError("checkout_redemptions musi być listą.")
     operation_ids: set[str] = set()
     redeemed_codes: set[str] = set()
+    migrated = migrating
     for entry in history:
         if not isinstance(entry, dict) or set(entry) != {
             "operation_id", "demo_generation_id", "request", "result",
@@ -124,10 +148,9 @@ def _validate_checkout_state(state: dict[str, Any], *, migrating: bool) -> None:
         if operation_id != entry["operation_id"] or operation_id in operation_ids:
             raise ValueError("Niekanoniczny lub powtórzony UUID operacji.")
         operation_ids.add(operation_id)
+        migrated = _migrate_glass_return(entry) or migrated
         request = entry["request"]
-        if not isinstance(request, dict) or set(request) != {
-            "demo_generation_id", "voucher_code", "redemption_mode", "items",
-        }:
+        if set(request) != _REQUEST_FIELDS:
             raise ValueError("Niekompletne zapisane żądanie.")
         canonical = canonical_request(**request)
         if canonical != request or entry["demo_generation_id"] != generation:
@@ -142,7 +165,7 @@ def _validate_checkout_state(state: dict[str, Any], *, migrating: bool) -> None:
         voucher = vouchers[code]
         expected_items = [{"product_id": i.product_id, "quantity": i.quantity} for i in result.items]
         if (request["voucher_code"] != code or request["redemption_mode"] != result.redemption_mode
-                or request["items"] != expected_items):
+                or request["items"] != expected_items or request["glass_count"] != result.glass_count):
             raise ValueError("Żądanie i wynik historyczny są rozbieżne.")
         if (voucher["status"] != VoucherStatus.REDEEMED or LEGACY_REDEEMED_MARKER in voucher
                 or voucher["redeemed_at_iso"] != result.redeemed_at_iso
@@ -152,3 +175,4 @@ def _validate_checkout_state(state: dict[str, Any], *, migrating: bool) -> None:
         if not (datetime.fromisoformat(voucher["issued_at_iso"]) <= redeemed_at
                 < datetime.fromisoformat(voucher["expires_at_iso"])):
             raise ValueError("Data realizacji leży poza okresem ważności bonu.")
+    return migrated

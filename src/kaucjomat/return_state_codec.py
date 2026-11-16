@@ -191,7 +191,7 @@ def validate_state_payload(
             migrated = True
         parsed_vouchers = tuple(parsed_voucher_list)
 
-    validate_checkout_state(raw, migrating=migrated)
+    migrated = validate_checkout_state(raw, migrating=migrated) or migrated
     raw["schema_version"] = SCHEMA_VERSION
     return raw, parsed_attempts, parsed_vouchers, migrated
 

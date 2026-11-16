@@ -7,7 +7,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Any
 
-from kaucjomat.checkout_domain import Basket, RedemptionMode, SettlementResult, VoucherSettlement
+from kaucjomat.checkout_domain import Basket, GlassReturn, RedemptionMode, SettlementResult, VoucherSettlement
 from kaucjomat.checkout_exceptions import (
     DemoGenerationConflictError, RedemptionOperationConflictError, VoucherNotFoundError,
 )
@@ -32,13 +32,14 @@ def prepare_redemption(
     voucher_code: str,
     redemption_mode: RedemptionMode | str,
     items: Sequence[Mapping[str, object]],
+    glass_count: int = 0,
 ) -> tuple[SettlementResult, bool]:
     """Rozpoznaje ponowienie albo przygotowuje jedną zmianę bonu i historii do atomowego zapisu."""
     generation = canonical_uuid(demo_generation_id, "demo_generation_id")
     if generation != state["demo_generation_id"]:
         raise DemoGenerationConflictError("Pokaz DEMO został zresetowany; odśwież dane kasy.")
     operation = canonical_uuid(operation_id, "operation_id")
-    request = canonical_request(generation, voucher_code, redemption_mode, items)
+    request = canonical_request(generation, voucher_code, redemption_mode, items, glass_count)
     previous = next((e for e in state["checkout_redemptions"] if e["operation_id"] == operation), None)
     if previous is not None:
         if previous["request"] != request:
@@ -54,7 +55,9 @@ def prepare_redemption(
     now = datetime.now(UTC)
     voucher = voucher_dict_to_record(voucher_dict, now=now)
     voucher = replace(voucher, voucher_code=request["voucher_code"])
-    result = VoucherSettlement(voucher, now).settle(request["redemption_mode"], basket)
+    result = VoucherSettlement(voucher, now).settle(
+        request["redemption_mode"], basket, GlassReturn.from_count(request["glass_count"]),
+    )
     voucher_dict["status"] = VoucherStatus.REDEEMED.value
     voucher_dict["redeemed_at_iso"] = result.redeemed_at_iso
     state["checkout_redemptions"].append({

@@ -176,6 +176,7 @@
           glassCount: state.lastApplied !== pending.operation_id ? 0 : state.glassCount,
           basket: pending.redemption_mode === "purchases" && state.lastApplied !== pending.operation_id ? [] : state.basket };
         if (!save(next)) throw new Error("Wynik serwera wymaga ponownego odzyskania z powodu błędu zapisu karty.");
+        quote = null; // Wyzeruj poprzednią wycenę przed odświeżeniem kontekstu z serwera.
         node("checkout-message").textContent = payload.message;
         error("", "checkoutAction");
         render();
@@ -201,6 +202,7 @@
       demo.end("redemption");
       controls();
       (focusResult ? node("checkout-result") : node("checkout-message")).focus({ preventScroll: true });
+      if (focusResult) void loadContext();
     }
   }
 

@@ -73,3 +73,10 @@ class SessionVoucherConflictError(KaucjomatError):
 
     error_code: str = "SESSION_VOUCHER_CONFLICT"
     status_code: int = 409
+
+
+class BatchLogAnalysisError(KaucjomatError):
+    """Wyjątek zgłaszany przy błędach odczytu, zapisu lub braku plików logów wsadowych."""
+
+    error_code: str = "BATCH_LOG_ANALYSIS_ERROR"
+    status_code: int = 400

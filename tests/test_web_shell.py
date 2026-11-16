@@ -264,9 +264,11 @@ def test_requirements_txt_contains_runtime_dependencies_only() -> None:
 
     exported_versions: dict[str, str] = {}
     for line in lines:
-        assert "==" in line, f"Oczekiwano przypiętej wersji '==' w requirements.txt: {line}"
-        name, version = line.split("==", 1)
-        normalized_name = name.strip().replace("_", "-")
+        # Odcinamy marker środowiskowy PEP 508 (`; sys_platform == ...`) przed analizą wersji.
+        spec_part = line.split(";", 1)[0].strip()
+        assert "==" in spec_part, f"Oczekiwano przypiętej wersji '==' w requirements.txt: {line}"
+        name, version = spec_part.split("==", 1)
+        normalized_name = name.split("[", 1)[0].strip().replace("_", "-")
         exported_versions[normalized_name] = version.strip()
 
     assert runtime_declared <= set(exported_versions), "Brak zależności runtime w requirements.txt"

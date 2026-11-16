@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from contextlib import suppress
 import json
 from pathlib import Path
@@ -9,10 +10,13 @@ import threading
 from typing import Any
 import uuid
 
+from kaucjomat.checkout_domain import RedemptionMode, SettlementResult
+from kaucjomat.checkout_redemption import CheckoutSnapshot, prepare_redemption
 from kaucjomat.exceptions import (
     EmptyReturnSessionError,
     InvalidConfigurationError,
     InvalidDepositRequestError,
+    KaucjomatError,
     ReturnStateStorageError,
     SessionVoucherConflictError,
 )
@@ -73,6 +77,43 @@ class ReturnStateStore:
             if needs_save:
                 self._save_state(state)
             return parsed_vouchers
+
+    def get_checkout_snapshot(self) -> CheckoutSnapshot:
+        """Odczytuje bony i stabilną generację, utrwalając inicjalizację lub migrację."""
+        with self._lock:
+            state, _, vouchers, needs_save = self._load_state()
+            if needs_save:
+                self._save_state(state)
+            return CheckoutSnapshot(state["demo_generation_id"], vouchers)
+
+    def redeem_voucher(
+        self, operation_id: str, demo_generation_id: str, voucher_code: str,
+        redemption_mode: RedemptionMode | str, items: Sequence[Mapping[str, object]],
+    ) -> tuple[SettlementResult, bool]:
+        """Zużywa bon i zapisuje wynik w jednej transakcji albo odtwarza wcześniejszy wynik."""
+        with self._lock:
+            try:
+                state, _, _, _ = self._load_state()
+                result, replayed = prepare_redemption(
+                    state, operation_id, demo_generation_id, voucher_code, redemption_mode, items,
+                )
+                if not replayed:
+                    self._save_state(state)
+            except ReturnStateStorageError:
+                raise  # Odczyt i zapis rejestrują awarię, bez potwierdzania realizacji.
+            except KaucjomatError as exc:
+                self._logger.warning(
+                    "Odmowa realizacji bonu DEMO %s (%s): %s.",
+                    sanitize_for_log(voucher_code), sanitize_for_log(redemption_mode), exc.error_code,
+                )
+                raise
+            self._logger.info(
+                "%s bonu DEMO %s (%s): do zapłaty %d gr, wypłata %d gr.",
+                "Odtworzono wynik realizacji" if replayed else "Zapisano realizację",
+                sanitize_for_log(result.voucher_code), sanitize_for_log(result.redemption_mode),
+                result.amount_due_grosze, result.cash_payout_grosze,
+            )
+            return result, replayed
 
     def process_deposit(
         self,

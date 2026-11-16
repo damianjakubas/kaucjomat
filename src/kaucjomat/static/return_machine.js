@@ -1,10 +1,8 @@
 /**
  * Kontroler komunikacji API i obsługi zdarzeń stanowiska Butelkomatu DEMO.
- * Współpracuje z `KaucjomatReturnView` (`return_machine_view.js`) przy aktualizacji DOM.
  */
 
-let isReturnRequestInFlight = false;
-let stateMutationEpoch = 0;
+const returnDemo = window.KaucjomatDemo;
 
 /**
  * Zgłasza lub czyści komunikat błędu dla wskazanego źródła we wspólnym banerze powłoki.
@@ -22,7 +20,6 @@ function reportReturnsError(message, source = "returnsAction") {
  * @returns {void}
  */
 function setMachineControlsBusy(isBusy) {
-  isReturnRequestInFlight = isBusy;
   const resetBtn = document.getElementById("reset-demo-btn");
   if (resetBtn) resetBtn.disabled = isBusy;
   const issueBtn = document.getElementById("issue-voucher-btn");
@@ -56,8 +53,10 @@ async function fetchReturnJson(url, options = {}) {
 async function loadReturnCards() {
   const shelf = document.getElementById("package-cards-shelf");
   if (!shelf || !window.KaucjomatReturnView) return;
+  const ticket = returnDemo.read("returnsCards");
   try {
     const payload = await fetchReturnJson("/api/returns/cards");
+    if (!returnDemo.current(ticket)) return;
     if (!Array.isArray(payload.cards)) throw new Error("Niepoprawna lista kart.");
     shelf.textContent = "";
     payload.cards.forEach((card) => {
@@ -67,8 +66,10 @@ async function loadReturnCards() {
       );
       shelf.appendChild(cardNode);
     });
+    setMachineControlsBusy(returnDemo.busy);
     reportReturnsError("", "returnsCards");
   } catch (error) {
+    if (!returnDemo.current(ticket)) return;
     reportReturnsError(
       `Nie udało się wczytać kart testowych: ${error instanceof Error ? error.message : String(error)}`,
       "returnsCards",
@@ -82,19 +83,21 @@ async function loadReturnCards() {
  */
 async function loadReturnSession() {
   if (!window.KaucjomatReturnView) return;
-  const startEpoch = stateMutationEpoch;
+  const ticket = returnDemo.read("returnsSession");
   try {
     const session = await fetchReturnJson("/api/returns/session");
     // Odrzucamy spóźnioną odpowiedź startową, jeśli użytkownik zdążył już zmutować stan.
-    if (startEpoch !== stateMutationEpoch) return;
+    if (!returnDemo.current(ticket)) return;
     window.KaucjomatReturnView.renderSessionState(session);
     // Najnowsza próba z historii znajduje się pod indeksem 0 (posortowane malejąco od ostatniej).
     if (Array.isArray(session.attempts) && session.attempts.length > 0) {
       const latest = session.attempts[0];
       window.KaucjomatReturnView.renderScannerDecision(latest, Number(latest.elapsed_ms || 0));
     }
+    else window.KaucjomatReturnView.resetScannerBoxView();
     reportReturnsError("", "returnsSession");
   } catch (error) {
+    if (!returnDemo.current(ticket)) return;
     reportReturnsError(
       `Nie udało się odczytać stanu sesji DEMO: ${error instanceof Error ? error.message : String(error)}`,
       "returnsSession",
@@ -108,8 +111,7 @@ async function loadReturnSession() {
  * @returns {Promise<void>} Obietnica kończąca się po zaktualizowaniu decyzji i sesji.
  */
 async function submitPackageDeposit(cardId) {
-  if (isReturnRequestInFlight || !window.KaucjomatReturnView) return;
-  stateMutationEpoch += 1;
+  if (!window.KaucjomatReturnView || !returnDemo.begin("deposit")) return;
   setMachineControlsBusy(true);
   const startTime = performance.now();
   try {
@@ -128,6 +130,7 @@ async function submitPackageDeposit(cardId) {
       "returnsAction",
     );
   } finally {
+    returnDemo.end("deposit");
     setMachineControlsBusy(false);
   }
 }
@@ -138,15 +141,16 @@ async function submitPackageDeposit(cardId) {
  */
 async function loadLatestIssuedVoucher() {
   if (!window.KaucjomatReturnView) return;
-  const startEpoch = stateMutationEpoch;
+  const ticket = returnDemo.read("returnsVoucher");
   try {
     const payload = await fetchReturnJson("/api/returns/vouchers");
-    if (startEpoch !== stateMutationEpoch) return;
+    if (!returnDemo.current(ticket)) return;
     const vouchers = Array.isArray(payload.vouchers) ? payload.vouchers : [];
     const latestUserVoucher = vouchers.find((item) => item && item.is_test_seed === false) || null;
     window.KaucjomatReturnView.renderIssuedVoucher(latestUserVoucher);
     reportReturnsError("", "returnsVoucher");
   } catch (error) {
+    if (!returnDemo.current(ticket)) return;
     reportReturnsError(
       `Nie udało się odtworzyć listy bonów DEMO: ${error instanceof Error ? error.message : String(error)}`,
       "returnsVoucher",
@@ -159,8 +163,7 @@ async function loadLatestIssuedVoucher() {
  * @returns {Promise<void>} Obietnica kończąca się po aktualizacji sesji i karty bonu.
  */
 async function issueSessionVoucher() {
-  if (isReturnRequestInFlight || !window.KaucjomatReturnView) return;
-  stateMutationEpoch += 1;
+  if (!window.KaucjomatReturnView || !returnDemo.begin("issue")) return;
   const issueBtn = document.getElementById("issue-voucher-btn");
   const currentSessionId = issueBtn ? issueBtn.dataset.sessionId || "" : "";
   setMachineControlsBusy(true);
@@ -186,6 +189,7 @@ async function issueSessionVoucher() {
       "returnsAction",
     );
   } finally {
+    returnDemo.end("issue");
     setMachineControlsBusy(false);
   }
 }
@@ -195,12 +199,13 @@ async function issueSessionVoucher() {
  * @returns {Promise<void>} Obietnica kończąca się po wyczyszczeniu widoku i sesji.
  */
 async function resetReturnDemoState() {
-  if (isReturnRequestInFlight || !window.KaucjomatReturnView) return;
-  stateMutationEpoch += 1;
+  if (!window.KaucjomatReturnView || !returnDemo.begin("reset")) return;
+  let didReset = false;
   setMachineControlsBusy(true);
   try {
     const payload = await fetchReturnJson("/api/returns/reset", { method: "POST" });
     if (!payload.session) throw new Error("Brak sesji w odpowiedzi resetu.");
+    didReset = true;
     window.KaucjomatReturnView.renderSessionState(payload.session);
     window.KaucjomatReturnView.renderIssuedVoucher(null);
     window.KaucjomatReturnView.resetScannerBoxView();
@@ -212,6 +217,7 @@ async function resetReturnDemoState() {
       "returnsAction",
     );
   } finally {
+    returnDemo.end(didReset ? "reset" : "refresh");
     setMachineControlsBusy(false);
   }
 }
@@ -242,6 +248,20 @@ function initReturnMachine() {
   if (issueBtn) issueBtn.addEventListener("click", () => { void issueSessionVoucher(); });
   if (printBtn) printBtn.addEventListener("click", () => { window.print(); });
   if (resetBtn) resetBtn.addEventListener("click", () => { void resetReturnDemoState(); });
+  window.addEventListener("kaucjomat:state-changed", (event) => {
+    setMachineControlsBusy(returnDemo.busy);
+    if (event.detail.phase === "end") {
+      void loadReturnSession();
+      void loadLatestIssuedVoucher();
+      if (!document.querySelector(".btn-deposit-card")) void loadReturnCards();
+    }
+  });
+  window.addEventListener("kaucjomat:view-selected", (event) => {
+    if (event.detail.viewId === "butelkomat" && !returnDemo.busy) {
+      void loadReturnSession();
+      void loadLatestIssuedVoucher();
+    }
+  });
   void loadReturnCards();
   void loadReturnSession();
   void loadLatestIssuedVoucher();

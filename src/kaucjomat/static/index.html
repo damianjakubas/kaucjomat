@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="/static/styles.css">
   <link rel="stylesheet" href="/static/return_machine.css">
   <link rel="stylesheet" href="/static/voucher_print.css">
+  <link rel="stylesheet" href="/static/checkout.css">
 </head>
 <body>
   <div class="app-shell">
@@ -27,37 +28,13 @@
 
       <!-- Pasek przełączania 3 głównych widoków edukacyjnych -->
       <nav class="view-switcher" role="tablist" aria-label="Widoki symulatora KaucjaSim DEMO">
-        <button
-          type="button"
-          class="view-tab is-active"
-          id="tab-butelkomat"
-          role="tab"
-          aria-controls="view-butelkomat"
-          aria-selected="true"
-          data-view-target="butelkomat"
-        >
+        <button type="button" class="view-tab is-active" id="tab-butelkomat" role="tab" aria-controls="view-butelkomat" aria-selected="true" data-view-target="butelkomat">
           Butelkomat
         </button>
-        <button
-          type="button"
-          class="view-tab"
-          id="tab-kasa"
-          role="tab"
-          aria-controls="view-kasa"
-          aria-selected="false"
-          data-view-target="kasa"
-        >
+        <button type="button" class="view-tab" id="tab-kasa" role="tab" aria-controls="view-kasa" aria-selected="false" data-view-target="kasa">
           Kasa Sklepowa
         </button>
-        <button
-          type="button"
-          class="view-tab"
-          id="tab-analityka"
-          role="tab"
-          aria-controls="view-analityka"
-          aria-selected="false"
-          data-view-target="analityka"
-        >
+        <button type="button" class="view-tab" id="tab-analityka" role="tab" aria-controls="view-analityka" aria-selected="false" data-view-target="analityka">
           Analityka i Benchmark GIL
         </button>
       </nav>
@@ -71,13 +48,7 @@
 
     <main class="shell-main">
       <!-- Widok 1: Butelkomat (domyślny) -->
-      <section
-        id="view-butelkomat"
-        class="view-panel"
-        role="tabpanel"
-        aria-labelledby="tab-butelkomat"
-        data-view-panel="butelkomat"
-      >
+      <section id="view-butelkomat" class="view-panel" role="tabpanel" aria-labelledby="tab-butelkomat" data-view-panel="butelkomat">
         <div class="panel-header">
           <span class="panel-badge" data-view-badge="butelkomat">DEMO</span>
           <span class="panel-latency" data-view-latency="butelkomat">Przełączanie lokalne &lt; 200 ms</span>
@@ -112,13 +83,7 @@
             </div>
           </div>
           <div class="summary-actions">
-            <button
-              type="button"
-              class="btn-issue-voucher"
-              id="issue-voucher-btn"
-              data-can-issue="false"
-              disabled
-            >
+            <button type="button" class="btn-issue-voucher" id="issue-voucher-btn" data-can-issue="false" disabled>
               Zakończ sesję i wystaw bon DEMO
             </button>
             <button type="button" class="btn-reset-demo" id="reset-demo-btn">Resetuj stan DEMO</button>
@@ -128,12 +93,7 @@
         <!-- Stanowisko butelkomatu: po lewej wlot + ekran skanera + bon + historia, po prawej półka kart -->
         <div class="return-station-grid">
           <div class="return-column-left">
-            <div
-              id="deposit-dropzone"
-              class="deposit-dropzone"
-              role="region"
-              aria-label="Wlot butelkomatu DEMO — upuść kartę opakowania"
-            >
+            <div id="deposit-dropzone" class="deposit-dropzone" role="region" aria-label="Wlot butelkomatu DEMO — upuść kartę opakowania">
               <span class="dropzone-badge">WLOT AUTOMATU DEMO</span>
               <p class="dropzone-title">Przeciągnij kartę opakowania tutaj lub kliknij „Wrzuć do automatu”</p>
               <div id="scanner-result-box" class="scanner-result-box" aria-live="polite">
@@ -193,14 +153,7 @@
       </section>
 
       <!-- Widok 2: Kasa Sklepowa -->
-      <section
-        id="view-kasa"
-        class="view-panel"
-        role="tabpanel"
-        aria-labelledby="tab-kasa"
-        data-view-panel="kasa"
-        hidden
-      >
+      <section id="view-kasa" class="view-panel" role="tabpanel" aria-labelledby="tab-kasa" data-view-panel="kasa" hidden>
         <div class="panel-header">
           <span class="panel-badge panel-badge-pos" data-view-badge="kasa">KASA SKLEPOWA — TRYB DEMO (Dokumenty niefiskalne)</span>
           <span class="panel-latency" data-view-latency="kasa">Przełączanie lokalne &lt; 200 ms</span>
@@ -212,31 +165,45 @@
         <div class="pos-demo-banner">
           KASA SKLEPOWA — TRYB DEMO (Dokumenty niefiskalne) — wszelkie kwoty i bony służą wyłącznie do symulacji edukacyjnej.
         </div>
-        <div class="panel-grid">
-          <article class="info-card">
-            <h3>Zakres planowany dla kasy sklepowej</h3>
-            <p data-view-scope="kasa">
-              Kompletowanie koszyka, realizacja aktywnego bonu i przyjmowanie szkła wielokrotnego użytku.
-            </p>
-          </article>
-          <article class="info-card">
-            <h3>Ochrona przed myleniem z dokumentem fiskalnym</h3>
-            <p>
-              Każdy widok kasy i późniejszy wydruk pozostaje wyraźnie oznaczony jako dokument niefiskalny TRYB DEMO.
-            </p>
-          </article>
+        <p class="checkout-hint" data-view-scope="kasa">Dodaj produkty, wybierz lub wpisz kod bonu i rozlicz go na zakupy albo gotówkę DEMO.</p>
+        <div class="checkout-grid">
+          <section class="checkout-card" aria-labelledby="checkout-catalog-heading">
+            <h3 id="checkout-catalog-heading">Produkty DEMO</h3>
+            <ul id="checkout-products" aria-label="Katalog produktów"><li>Ładowanie katalogu…</li></ul>
+            <h3 id="checkout-basket-heading">Twój koszyk</h3>
+            <ul id="checkout-basket" aria-labelledby="checkout-basket-heading"></ul>
+            <p class="checkout-total"><span>Suma zakupów</span><strong id="checkout-total">—</strong></p>
+            <p id="checkout-quote-state" class="checkout-hint" role="status"></p>
+          </section>
+          <section class="checkout-card" aria-labelledby="checkout-vouchers-heading">
+            <h3 id="checkout-vouchers-heading">Bony DEMO</h3>
+            <button type="button" id="checkout-refresh">Odśwież bony i ceny</button>
+            <p id="checkout-context-state" class="checkout-hint" role="status"></p>
+            <ul id="checkout-vouchers" aria-labelledby="checkout-vouchers-heading"><li>Ładowanie bonów…</li></ul>
+            <label for="checkout-code">Kod bonu DEMO</label>
+            <input id="checkout-code" type="text" maxlength="64" autocomplete="off" spellcheck="false" aria-describedby="checkout-mode-hint">
+            <p id="checkout-mode-hint" class="checkout-hint">Zakupy: koszyk musi pokrywać wartość bonu. Gotówka: pełna wypłata bonu, koszyk pozostaje nierozliczony.</p>
+            <div class="checkout-actions">
+              <button type="button" id="checkout-purchases" disabled>Na zakupy</button>
+              <button type="button" id="checkout-cash" disabled>Wypłać gotówkę</button>
+            </div>
+          </section>
         </div>
+        <div id="checkout-pending" role="status" hidden>
+          Wynik oczekuje na rozstrzygnięcie. Zachowano żądanie; edycja jest zablokowana.
+          <button type="button" id="checkout-retry" hidden>Sprawdź ponownie</button>
+          <p>Reset stanu DEMO w butelkomacie świadomie usuwa wszystkie bony i wyniki pokazu.</p>
+        </div>
+        <p id="checkout-message" role="status" aria-live="polite" tabindex="-1">Kasa DEMO gotowa do rozpoczęcia.</p>
+        <p id="checkout-timing" class="checkout-hint"></p>
+        <section id="checkout-result" class="checkout-card" aria-labelledby="checkout-result-heading" tabindex="-1" hidden>
+          <h3 id="checkout-result-heading">Ostatnie rozliczenie — DEMO (dokument niefiskalny)</h3>
+          <div id="checkout-result-body"></div>
+        </section>
       </section>
 
       <!-- Widok 3: Analityka i Benchmark GIL -->
-      <section
-        id="view-analityka"
-        class="view-panel"
-        role="tabpanel"
-        aria-labelledby="tab-analityka"
-        data-view-panel="analityka"
-        hidden
-      >
+      <section id="view-analityka" class="view-panel" role="tabpanel" aria-labelledby="tab-analityka" data-view-panel="analityka" hidden>
         <div class="panel-header">
           <span class="panel-badge" data-view-badge="analityka">DEMO</span>
           <span class="panel-latency" data-view-latency="analityka">Przełączanie lokalne &lt; 200 ms</span>
@@ -269,8 +236,13 @@
   </div>
 
   <!-- Lokalne skrypty przełącznika widoków oraz obsługi butelkomatu (vanilla JS) -->
+  <script src="/static/demo_state.js" defer></script>
   <script src="/static/app.js" defer></script>
   <script src="/static/return_machine_view.js" defer></script>
   <script src="/static/return_machine.js" defer></script>
+  <script src="/static/checkout_contract.js" defer></script>
+  <script src="/static/checkout_state.js" defer></script>
+  <script src="/static/checkout_view.js" defer></script>
+  <script src="/static/checkout.js" defer></script>
 </body>
 </html>

@@ -7,7 +7,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from kaucjomat.return_schemas import ReturnSessionSchema
-from kaucjomat.voucher_domain import VOUCHER_VALIDITY_DAYS, VoucherStatus
+from kaucjomat.voucher_domain import VOUCHER_VALIDITY_DAYS, VoucherRecord, VoucherStatus
 
 DEFAULT_DEMO_WATERMARK = "BON KAUCYJNY — TRYB DEMO (Dokument niefiskalny)"
 
@@ -86,4 +86,23 @@ class VouchersListResponse(BaseModel):
     )
     vouchers: list[VoucherSchema] = Field(
         description="Bony DEMO uporządkowane od najnowszych użytkownika po bon testowy."
+    )
+
+
+def to_voucher_schema(voucher: VoucherRecord) -> VoucherSchema:
+    """Udostępnia obu routerom tę samą reprezentację bonu kaucjomatowego DEMO."""
+    return VoucherSchema(
+        mode="DEMO",
+        voucher_code=voucher.voucher_code,
+        source_session_id=voucher.source_session_id,
+        amount_grosze=voucher.amount_grosze,
+        amount_formatted=voucher.amount_formatted,
+        accepted_count=voucher.accepted_count,
+        issued_at_iso=voucher.issued_at_iso,
+        expires_at_iso=voucher.expires_at_iso,
+        validity_days=VOUCHER_VALIDITY_DAYS,
+        status=voucher.status,
+        redeemed_at_iso=voucher.redeemed_at_iso,
+        is_test_seed=voucher.is_test_seed,
+        demo_watermark=DEFAULT_DEMO_WATERMARK,
     )

@@ -43,10 +43,10 @@ VIEWS: tuple[ViewDefinition, ...] = (
         id="kasa",
         title="Kasa Sklepowa",
         badge="DEMO • Kasa",
-        description="Stanowisko kasowe DEMO rozliczające zakupy, bony oraz zwrot szkła.",
+        description="Stanowisko kasowe DEMO z koszykiem i realizacją bonów na zakupy lub gotówkę.",
         planned_scope=(
-            "Kompletowanie koszyka, realizacja aktywnego bonu i przyjmowanie "
-            "szkła wielokrotnego użytku."
+            "Dodaj produkty, wybierz lub wpisz kod bonu i rozlicz go na zakupy "
+            "albo wypłać pełną wartość bonu w gotówce DEMO."
         ),
     ),
     ViewDefinition(

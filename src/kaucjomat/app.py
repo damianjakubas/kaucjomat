@@ -10,6 +10,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from kaucjomat.checkout_router import create_checkout_router
 from kaucjomat.config import (
     APP_NAME,
     APP_TITLE,
@@ -182,5 +183,6 @@ def create_app(state_file: Path | None = None) -> FastAPI:
         return get_view_or_raise(view_id)
 
     app.include_router(create_return_router(return_store))
+    app.include_router(create_checkout_router(return_store))
 
     return app

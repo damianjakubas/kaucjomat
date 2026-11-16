@@ -23,6 +23,11 @@ def test_context_initializes_stable_generation_and_expired_seed(
     body = response.json()
     assert body["mode"] == "DEMO"
     assert str(UUID(body["demo_generation_id"])) == body["demo_generation_id"]
+    assert body["glass_return_spec"] == {
+        "title": "Butelka szklana wielokrotnego użytku do 1,5 l",
+        "unit_deposit_grosze": 100, "unit_deposit_formatted": "1,00 zł",
+        "max_volume_ml": 1500, "max_quantity": 20,
+    }
     assert [(p["product_id"], p["name"], p["unit_price_grosze"], p["unit_price_formatted"])
             for p in body["products"]] == [
         ("bread-roll", "Bułka", 50, "0,50 zł"), ("apple", "Jabłko", 150, "1,50 zł"),
@@ -38,10 +43,15 @@ def test_context_initializes_stable_generation_and_expired_seed(
 
 
 @pytest.mark.parametrize(("quantity", "total", "due"), [(2, 100, 0), (3, 150, 50)])
+@pytest.mark.parametrize("glass_count", [None, 0, 1, 20])
 def test_full_purchase_flow_preserves_return_state(
     checkout_client: TestClient, checkout_file: Path, quantity: int, total: int, due: int,
+    glass_count: int | None,
 ) -> None:
     """Wystawienie, wycena i realizacja HTTP dają poprawne sumy oraz spójne statusy bonu."""
+    count = glass_count or 0
+    quantity += 2 * count
+    total += 100 * count
     for card_id in ("pet-water-1500-a", "pet-water-1500-b"):
         assert checkout_client.post("/api/returns/deposit", json={"card_id": card_id}).status_code == 200
     issued = checkout_client.post("/api/returns/voucher").json()
@@ -51,9 +61,12 @@ def test_full_purchase_flow_preserves_return_state(
     payload = {"operation_id": str(uuid4()), "demo_generation_id": context["demo_generation_id"],
                "voucher_code": issued["voucher"]["voucher_code"], "redemption_mode": "purchases",
                "items": [{"product_id": "bread-roll", "quantity": quantity}]}
+    glass_fields = {} if glass_count is None else {"glass_count": glass_count}
+    payload.update(glass_fields)
     before = json.loads(checkout_file.read_bytes())
     quote_response = checkout_client.post("/api/checkout/quote", json={
         "demo_generation_id": payload["demo_generation_id"], "items": payload["items"],
+        **glass_fields,
     })
     assert quote_response.status_code == 200
     quote = quote_response.json()
@@ -64,6 +77,10 @@ def test_full_purchase_flow_preserves_return_state(
     assert body["mode"] == "DEMO" and "DEMO" in body["message"]
     assert body["was_idempotent_replay"] is False
     result = body["settlement"]
+    for key, value in {"glass_count": count, "glass_return_grosze": count * 100,
+                       "glass_return_formatted": f"{count},00 zł"}.items():
+        assert result[key] == quote[key] == value
+    assert ("zwrot szkła" in body["message"]) == (count > 0)
     assert result["mode"] == "DEMO" and result["voucher_status"] == "ZUŻYTY"
     assert result["operation_id"] == payload["operation_id"]
     assert result["demo_generation_id"] == context["demo_generation_id"]
@@ -73,7 +90,7 @@ def test_full_purchase_flow_preserves_return_state(
     assert result["items"] == quote["items"] == [{
         "product_id": "bread-roll", "name": "Bułka", "unit_price_grosze": 50,
         "unit_price_formatted": "0,50 zł", "quantity": quantity, "line_total_grosze": total,
-        "line_total_formatted": "1,00 zł" if quantity == 2 else "1,50 zł",
+        "line_total_formatted": f"{total // 100},{total % 100:02d} zł",
     }]
     assert result["basket_total_grosze"] == total
     assert result["basket_total_formatted"] == quote["basket_total_formatted"]
@@ -92,15 +109,21 @@ def test_full_purchase_flow_preserves_return_state(
     assert duplicate.json()["decision"]["reason_code"] == "DUPLICATE_INSTANCE_ID"
 
 
+@pytest.mark.parametrize("glass_count", [None, 0, 1, 20])
 def test_cash_pays_full_voucher_independently_of_quote(
     checkout_client: TestClient, checkout_request: dict[str, Any], checkout_file: Path,
+    glass_count: int | None,
 ) -> None:
     """Wypłata nie używa wcześniejszej wyceny koszyka, a wynik jawnie opisuje pełną gotówkę."""
+    count = glass_count or 0
+    glass_fields = {} if glass_count is None else {"glass_count": glass_count}
     quote = checkout_client.post("/api/checkout/quote", json={
         "demo_generation_id": checkout_request["demo_generation_id"],
         "items": [{"product_id": "bread", "quantity": 2}],
+        **glass_fields,
     }).json()
     checkout_request.update(redemption_mode="cash", items=[])
+    checkout_request.update(glass_fields)
     response = checkout_client.post("/api/checkout/redeem", json=checkout_request)
     assert response.status_code == 200
     body = response.json()
@@ -109,19 +132,25 @@ def test_cash_pays_full_voucher_independently_of_quote(
     assert result["items"] == [] and result["redemption_mode"] == "cash"
     assert result["basket_total_grosze"] == result["amount_due_grosze"] == 0
     assert result["basket_total_formatted"] == result["amount_due_formatted"] == "0,00 zł"
-    assert result["cash_payout_grosze"] == result["voucher_amount_grosze"] == 100
-    assert result["cash_payout_formatted"] == result["voucher_amount_formatted"] == "1,00 zł"
+    assert result["voucher_amount_grosze"] == 100 and result["voucher_amount_formatted"] == "1,00 zł"
+    assert result["cash_payout_grosze"] == 100 + count * 100
+    assert result["cash_payout_formatted"] == f"{1 + count},00 zł"
+    for key, value in {"glass_count": count, "glass_return_grosze": count * 100,
+                       "glass_return_formatted": f"{count},00 zł"}.items():
+        assert result[key] == quote[key] == value
+    assert ("zwrot szkła" in body["message"]) == (count > 0)
     assert len(json.loads(checkout_file.read_bytes())["checkout_redemptions"]) == 1
 
 
 @pytest.mark.parametrize("mode", ["purchases", "cash"])
 @pytest.mark.parametrize("catalog_change", ["prices", "removed"])
+@pytest.mark.parametrize("glass_count", [0, 2])
 def test_replay_after_restart_ignores_current_catalog_and_time(
     checkout_client: TestClient, checkout_request: dict[str, Any], checkout_file: Path,
-    monkeypatch: pytest.MonkeyPatch, mode: str, catalog_change: str,
+    monkeypatch: pytest.MonkeyPatch, mode: str, catalog_change: str, glass_count: int,
 ) -> None:
     """Nowa aplikacja odzyskuje identyczny wynik, nawet po zmianie nazw, cen i terminu bonu."""
-    checkout_request.update(redemption_mode=mode, items=[] if mode == "cash" else [
+    checkout_request.update(redemption_mode=mode, glass_count=glass_count, items=[] if mode == "cash" else [
         {"product_id": "bread", "quantity": 1}, {"product_id": "apple", "quantity": 1},
     ])
     first = checkout_client.post("/api/checkout/redeem", json=checkout_request)
@@ -150,24 +179,30 @@ def test_replay_after_restart_ignores_current_catalog_and_time(
     assert replay.json()["was_idempotent_replay"] is True
     assert "nie wykonano ponownego rozliczenia" in replay.json()["message"]
     assert "DEMO" in replay.json()["message"]
+    assert ("zwrot szkła" in replay.json()["message"]) == (glass_count > 0)
     assert checkout_file.read_bytes() == before
 
 
 @pytest.mark.parametrize("items", [[], [{"product_id": "bread-roll", "quantity": 99}], [
     {"product_id": "bread", "quantity": 1}, {"product_id": "apple", "quantity": 2},
 ]])
+@pytest.mark.parametrize("glass_count", [0, 1, 20])
 def test_quote_is_sorted_and_does_not_modify_initialized_state(
     checkout_client: TestClient, checkout_request: dict[str, Any], checkout_file: Path,
-    items: list[dict[str, Any]],
+    items: list[dict[str, Any]], glass_count: int,
 ) -> None:
     """Pusty i niepusty koszyk wyceniają się z cen serwera bez rezerwacji ani zapisu."""
     before = checkout_file.read_bytes()
     response = checkout_client.post("/api/checkout/quote", json={
         "demo_generation_id": checkout_request["demo_generation_id"], "items": items,
+        "glass_count": glass_count,
     })
     assert response.status_code == 200
     body = response.json()
     assert body["mode"] == "DEMO" and body["demo_generation_id"] == checkout_request["demo_generation_id"]
+    assert body["glass_count"] == glass_count
+    assert body["glass_return_grosze"] == glass_count * 100
+    assert body["glass_return_formatted"] == f"{glass_count},00 zł"
     assert [i["product_id"] for i in body["items"]] == sorted(i["product_id"] for i in items)
     assert body["basket_total_grosze"] == sum(i["unit_price_grosze"] * i["quantity"] for i in body["items"])
     if not items:

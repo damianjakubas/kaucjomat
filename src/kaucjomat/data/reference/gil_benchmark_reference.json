@@ -1,0 +1,120 @@
+{
+  "mode_label": "DEMO",
+  "generated_at_iso": "2026-11-16T18:38:59+00:00",
+  "log_dir": "data/generated/benchmark_logs",
+  "auto_generated": false,
+  "environment": {
+    "python_version": "3.13.5",
+    "implementation": "CPython",
+    "platform_summary": "Windows 11 (AMD64)",
+    "cpu_count": 16,
+    "gil_enabled": true,
+    "free_threading_build": false,
+    "switch_interval_s": 0.005
+  },
+  "dataset": {
+    "files_processed": 8,
+    "total_chunks": 40,
+    "valid_records": 39597,
+    "invalid_lines": 403,
+    "chunk_size": 1000,
+    "work_iterations": 30,
+    "io_elapsed_ms": 245.429
+  },
+  "benchmark_config": {
+    "repeats": 3,
+    "workers": 8,
+    "total_benchmark_elapsed_ms": 45140.41,
+    "fastest_strategy_id": "processes_spawn"
+  },
+  "strategies": [
+    {
+      "strategy_id": "sequential",
+      "strategy_label": "Sekwencyjnie (1 wątek)",
+      "workers": 1,
+      "repeats": 3,
+      "runs_ms": [
+        6510.874,
+        6921.0,
+        6625.687
+      ],
+      "median_ms": 6625.687,
+      "mean_ms": 6685.854,
+      "min_ms": 6510.874,
+      "max_ms": 6921.0,
+      "speedup_vs_sequential": 1.0,
+      "relative_to_sequential_pct": 100.0
+    },
+    {
+      "strategy_id": "threads",
+      "strategy_label": "Wątki (8 wątków, GIL)",
+      "workers": 8,
+      "repeats": 3,
+      "runs_ms": [
+        6750.455,
+        6788.4,
+        6878.765
+      ],
+      "median_ms": 6788.4,
+      "mean_ms": 6805.873,
+      "min_ms": 6750.455,
+      "max_ms": 6878.765,
+      "speedup_vs_sequential": 0.976,
+      "relative_to_sequential_pct": 102.5
+    },
+    {
+      "strategy_id": "processes_spawn",
+      "strategy_label": "Procesy spawn (8 proc.)",
+      "workers": 8,
+      "repeats": 3,
+      "runs_ms": [
+        1472.176,
+        1535.972,
+        1410.5
+      ],
+      "median_ms": 1472.176,
+      "mean_ms": 1472.883,
+      "min_ms": 1410.5,
+      "max_ms": 1535.972,
+      "speedup_vs_sequential": 4.501,
+      "relative_to_sequential_pct": 22.2
+    }
+  ],
+  "verified_metrics": {
+    "processed_records": 39597,
+    "accepted_count": 24597,
+    "redirected_glass_count": 6338,
+    "rejected_count": 8662,
+    "accepted_deposit_grosze": 1229850,
+    "redirected_glass_grosze": 633800,
+    "category_counts": {
+      "CAN": 15978,
+      "DAIRY_CARTON": 620,
+      "GLASS": 6338,
+      "OTHER": 668,
+      "PET": 15993
+    },
+    "rejection_reason_counts": {
+      "CRUSHED_OR_DAMAGED": 1253,
+      "DUPLICATE_INSTANCE_ID": 1216,
+      "EXCLUDED_CATEGORY": 1288,
+      "INVALID_CODE_FORMAT": 1176,
+      "MISSING_DEPOSIT_LOGO": 1212,
+      "NOT_EMPTY": 1255,
+      "VOLUME_LIMIT_EXCEEDED": 1262
+    },
+    "anomalous_latency_count": 1368,
+    "audit_checksum": 16184670422353667457,
+    "audit_checksum_hex": "0xe09b7fffc3296581"
+  },
+  "single_core_warning": null,
+  "conclusions": [
+    "Środowisko: CPython 3.13.5, wykryte rdzenie CPU=16, GIL=aktywny (interwał przełączania 0.0050 s).",
+    "Wątki (8 pracowników) uzyskały medianę 6788.4 ms (0.98x względem sekwencyjnego 6625.7 ms), co potwierdza serializację kodu bajtowego Pythona przez GIL w jednym procesie.",
+    "Procesy spawn (8 pracowników) osiągnęły medianę 1472.2 ms (4.50x względem przebiegu sekwencyjnego), omijając GIL dzięki niezależnym interpreterom."
+  ],
+  "artifacts": {
+    "json_path": "src/kaucjomat/data/reference/gil_benchmark_reference.json",
+    "chart_png_path": "src/kaucjomat/data/reference/gil_benchmark_reference.png"
+  }
+}

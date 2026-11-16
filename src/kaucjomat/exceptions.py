@@ -80,3 +80,10 @@ class BatchLogAnalysisError(KaucjomatError):
 
     error_code: str = "BATCH_LOG_ANALYSIS_ERROR"
     status_code: int = 400
+
+
+class GilBenchmarkError(KaucjomatError):
+    """Wyjątek zgłaszany przy błędach wykonania benchmarku GIL lub niezgodności metryk."""
+
+    error_code: str = "GIL_BENCHMARK_ERROR"
+    status_code: int = 400

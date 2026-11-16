@@ -11,6 +11,8 @@ from kaucjomat.batch_format import (
     batch_report_to_dict,
     format_batch_analysis_report,
     format_batch_generation_report,
+    format_gil_benchmark_report,
+    gil_benchmark_report_to_dict,
 )
 from kaucjomat.batch_generator import generate_batch_log_dataset
 from kaucjomat.batch_runner import run_two_stage_batch_analysis
@@ -113,10 +115,73 @@ def register_batch_subparsers(
         action="store_true",
         help="Wypisuje pełny raport analizy w formacie JSON.",
     )
+    _register_benchmark_gil_parser(subparsers)
+
+
+def _register_benchmark_gil_parser(
+    subparsers: argparse._SubParsersAction[argparse.ArgumentParser],
+) -> None:
+    """Rejestruje podkomendę ``benchmark-gil`` (sekwencyjnie vs wątki vs procesy)."""
+    parser = subparsers.add_parser(
+        "benchmark-gil",
+        help="Porównuje czasy: sekwencyjnie, wątki (GIL) i procesy spawn, z wykresem PNG.",
+        description=(
+            "Mierzy to samo zadanie CPU-bound w trzech strategiach wykonania, "
+            "zapisuje raport JSON i wykres PNG (TRYB DEMO)."
+        ),
+    )
+    parser.add_argument("--log-dir", type=Path, default=None,
+                        help="Katalog z plikami .log (domyślnie data/generated/logs).")
+    parser.add_argument("--output-dir", type=Path, default=None,
+                        help="Katalog na JSON i PNG (domyślnie data/generated/benchmark).")
+    parser.add_argument("--save-reference", action="store_true",
+                        help="Zapisuje wyniki referencyjne śledzone w Git (src/kaucjomat/data/reference).")
+    parser.add_argument("--repeats", type=int, default=3,
+                        help="Liczba powtórzeń każdej strategii (domyślnie 3).")
+    parser.add_argument("--workers", type=int, default=None,
+                        help="Liczba wątków i procesów (domyślnie min(8, max(2, CPU))).")
+    parser.add_argument("--chunk-size", type=int, default=1000,
+                        help="Maksymalna liczba rekordów w jednej porcji (domyślnie 1000).")
+    parser.add_argument("--io-workers", type=int, default=None,
+                        help="Liczba wątków Etapu 1 I/O (domyślnie dobierana automatycznie).")
+    parser.add_argument("--work-iterations", type=int, default=30,
+                        help="Rundy FNV-1a na rekord (domyślnie 30).")
+    parser.add_argument("--no-auto-generate", action="store_true",
+                        help="Wyłącza automatyczne generowanie logów DEMO, gdy katalog jest pusty.")
+    parser.add_argument("--json", action="store_true",
+                        help="Wypisuje pełny raport benchmarku w formacie JSON.")
+
+
+def _execute_benchmark_gil(args: argparse.Namespace) -> int:
+    """Uruchamia benchmark GIL, zapisuje artefakty i wypisuje raport tekstowy lub JSON."""
+    # Import leniwy: matplotlib ładujemy tylko dla tej podkomendy.
+    from kaucjomat.gil_benchmark import run_gil_benchmark
+    from kaucjomat.gil_chart import save_gil_benchmark_artifacts
+
+    report = run_gil_benchmark(
+        args.log_dir,
+        repeats=args.repeats,
+        workers=args.workers,
+        chunk_size=args.chunk_size,
+        io_workers=args.io_workers,
+        work_iterations=args.work_iterations,
+        auto_generate=not args.no_auto_generate,
+    )
+    report = save_gil_benchmark_artifacts(
+        report, output_dir=args.output_dir, save_reference=args.save_reference
+    )
+    if args.json:
+        print(json.dumps(gil_benchmark_report_to_dict(report), ensure_ascii=False, indent=2))
+    else:
+        print(format_gil_benchmark_report(report))
+    return 0
 
 
 def execute_batch_cli_command(args: argparse.Namespace) -> int:
-    """Wykonuje podkomendę ``generate-logs`` lub ``analyze-logs`` i zwraca kod wyjścia."""
+    """Wykonuje podkomendę ``generate-logs``, ``analyze-logs`` lub ``benchmark-gil``."""
+    if args.command == "benchmark-gil":
+        return _execute_benchmark_gil(args)
+
     if args.command == "generate-logs":
         summary = generate_batch_log_dataset(
             args.log_dir,

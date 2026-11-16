@@ -89,6 +89,22 @@ def get_default_return_state_file() -> Path:
     return get_project_root() / "data" / "generated" / "state" / "return_state.json"
 
 
+BENCHMARK_RESULTS_JSON_NAME: str = "gil_benchmark_results.json"
+BENCHMARK_CHART_PNG_NAME: str = "gil_benchmark_chart.png"
+REFERENCE_BENCHMARK_JSON_NAME: str = "gil_benchmark_reference.json"
+REFERENCE_BENCHMARK_PNG_NAME: str = "gil_benchmark_reference.png"
+
+
+def get_default_benchmark_output_dir() -> Path:
+    """Zwraca domyślny katalog roboczy na wyniki i wykresy benchmarku GIL."""
+    return get_project_root() / "data" / "generated" / "benchmark"
+
+
+def get_reference_benchmark_dir() -> Path:
+    """Zwraca wersjonowany w Git katalog z referencyjnymi artefaktami benchmarku."""
+    return get_package_dir() / "data" / "reference"
+
+
 def resolve_port(cli_port: int | None = None) -> int:
     """Wyznacza i waliduje numer portu serwera z argumentu CLI lub zmiennej PORT."""
     if cli_port is not None:

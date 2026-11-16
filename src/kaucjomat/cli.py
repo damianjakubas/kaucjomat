@@ -95,7 +95,7 @@ def create_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(
         dest="command",
         title="Dostępne podkomendy",
-        metavar="{info,serve,generate-logs,analyze-logs}",
+        metavar="{info,serve,generate-logs,analyze-logs,benchmark-gil}",
     )
     subparsers.add_parser(
         "info",
@@ -203,7 +203,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return 0
 
-        if args.command in {"generate-logs", "analyze-logs"}:
+        if args.command in {"generate-logs", "analyze-logs", "benchmark-gil"}:
             return execute_batch_cli_command(args)
     except KaucjomatError as exc:
         root_logger = get_logger()

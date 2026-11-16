@@ -42,12 +42,18 @@ def test_checkout_semantics_labels_status_and_script_order() -> None:
         "checkout-products": "ul", "checkout-basket": "ul", "checkout-vouchers": "ul",
         "checkout-code": "input", "checkout-purchases": "button", "checkout-cash": "button",
         "checkout-retry": "button", "checkout-refresh": "button", "checkout-result": "section",
+        "checkout-glass": "div", "checkout-glass-total": "strong",
     }.items():
         assert markup.elements[element_id][0] == tag
     assert 'for="checkout-code"' in response.text
     assert markup.elements["checkout-code"][1]["maxlength"] == "64"
     assert markup.elements["checkout-message"][1]["aria-live"] == "polite"
     assert markup.elements["checkout-message"][1]["tabindex"] == "-1"
+    assert markup.elements["checkout-glass"][1]["role"] == "group"
+    assert markup.elements["checkout-glass"][1]["aria-label"] == "Zwrot szkła wielokrotnego użytku DEMO"
+    assert markup.elements["checkout-glass-total"][1]["aria-live"] == "polite"
+    assert "sumę bonu i zwróconego szkła (+1,00 zł/szt.)" in response.text
+    assert "szkło powiększa wypłatę DEMO" in response.text
     assert "hidden" in markup.elements["checkout-pending"][1]
     assert "hidden" in markup.elements["checkout-result"][1]
     assert "disabled" in markup.elements["checkout-purchases"][1]

@@ -32,10 +32,10 @@ window.KaucjomatCheckoutView = (() => {
     }
   }
 
-  /** Odtwarza koszyk i zachowuje focus kontrolki po zmianie ilości. */
-  function basket(state, products, quote) {
+  /** Odtwarza koszyk i szkło, zachowując fokus kontrolki po zmianie ilości. */
+  function basket(state, products, quote, glassSpec) {
     const active = document.activeElement;
-    const focus = active?.closest("#checkout-basket") ? {
+    const focus = active?.closest("#checkout-basket, #checkout-glass") ? {
       action: active.dataset.checkoutAction, product: active.dataset.productId,
     } : null;
     const list = node("checkout-basket");
@@ -52,10 +52,26 @@ window.KaucjomatCheckoutView = (() => {
       list.append(row);
     }
     node("checkout-total").textContent = quote ? quote.basket_total_formatted : "Oczekiwanie na wycenę…";
+    const glass = node("checkout-glass");
+    glass.replaceChildren();
+    if (glassSpec) {
+      const row = element("div", "", "checkout-row");
+      const quantity = element("span", "", "checkout-quantity");
+      const remove = button("−", "glass-remove", "", "Usuń butelkę szklaną DEMO");
+      const add = button("+", "glass-add", "", "Dodaj butelkę szklaną DEMO");
+      remove.disabled = state.glassCount <= 0;
+      add.disabled = state.glassCount >= glassSpec.max_quantity;
+      quantity.append(remove, element("span", `${state.glassCount} szt.`), add);
+      row.append(element("span", `${glassSpec.title} · +${glassSpec.unit_deposit_formatted}/szt.`), quantity);
+      glass.append(row);
+    }
+    node("checkout-glass-total").textContent = quote ? quote.glass_return_formatted : "Oczekiwanie na wycenę…";
     if (focus) {
-      const target = [...list.querySelectorAll("button")].find((item) => item.dataset.checkoutAction === focus.action
+      const buttons = [...(focus.action?.startsWith("glass-") ? glass : list).querySelectorAll("button")];
+      const target = buttons.find((item) => !item.disabled && item.dataset.checkoutAction === focus.action
         && item.dataset.productId === focus.product);
-      (target || node("checkout-products").querySelector("button"))?.focus({ preventScroll: true });
+      (target || buttons.find((item) => !item.disabled)
+        || node("checkout-products").querySelector("button"))?.focus({ preventScroll: true });
     }
   }
 
@@ -94,7 +110,8 @@ window.KaucjomatCheckoutView = (() => {
     const list = element("ul", "");
     for (const item of value.items) list.append(element("li",
       `${item.name} × ${item.quantity} · ${item.unit_price_formatted}/szt. · ${item.line_total_formatted}`));
-    body.append(list, element("p", `Zakupy: ${value.basket_total_formatted}`), element("strong",
+    body.append(list, element("p", `Zakupy: ${value.basket_total_formatted}`),
+      element("p", `Zwrot szkła DEMO: ${value.glass_count} szt. · ${value.glass_return_formatted}`), element("strong",
       value.redemption_mode === "cash" ? `Wypłata DEMO: ${value.cash_payout_formatted}`
         : `Pozostała kwota do zapłaty: ${value.amount_due_formatted}`));
     body.append(element("p", value.redemption_mode === "cash"
@@ -108,7 +125,9 @@ window.KaucjomatCheckoutView = (() => {
     document.querySelectorAll("[data-checkout-action]").forEach((item) => {
       const quantity = state.basket.find((entry) => entry.product_id === item.dataset.productId)?.quantity || 0;
       item.disabled = locked || item.dataset.inactive === "true"
-        || (item.dataset.checkoutAction === "add" && quantity >= 99);
+        || (item.dataset.checkoutAction === "add" && quantity >= 99)
+        || (item.dataset.checkoutAction === "glass-remove" && state.glassCount <= 0)
+        || (item.dataset.checkoutAction === "glass-add" && state.glassCount >= (context?.glass_return_spec.max_quantity || 20));
     });
     const input = node("checkout-code");
     if (input.value !== state.code) input.value = state.code;

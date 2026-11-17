@@ -35,18 +35,25 @@ def _processes_conclusion(proc: BenchmarkStrategyResult, seq: BenchmarkStrategyR
     return f"{head} — bez wyraźnego zysku: narzut startu spawn i IPC lub zbyt mało rdzeni CPU."
 
 
+def build_single_core_warning(cpu_count: int) -> str | None:
+    """Zwraca wyjaśnienie dla środowiska jednordzeniowego albo ``None`` przy 2+ rdzeniach."""
+    if cpu_count > 1:
+        return None
+    return (
+        "Wykryto środowisko jednordzeniowe (cpu_count=1): pula procesów spawn nie ma "
+        "dodatkowych rdzeni CPU, więc narzut startu procesów i IPC może ją spowolnić. "
+        "Przyspieszenie procesów powyżej 1,0x wymaga wielu rdzeni, a wątki nie pomogą "
+        "z powodu blokady GIL."
+    )
+
+
 def build_conclusions(
     env: GilEnvironmentInfo, strategies: tuple[BenchmarkStrategyResult, ...],
 ) -> tuple[str | None, tuple[str, ...]]:
     """Buduje ostrzeżenie dla 1 CPU oraz krótkie wnioski domenowe o wpływie GIL."""
     by_id = {item.strategy_id: item for item in strategies}
     seq, thr, proc = by_id["sequential"], by_id["threads"], by_id["processes_spawn"]
-    single_core_warning: str | None = None
-    if env.cpu_count <= 1:
-        single_core_warning = (
-            "Wykryto środowisko jednordzeniowe (cpu_count=1): pula procesów spawn nie ma "
-            "dodatkowych rdzeni CPU, więc narzut startu procesów i IPC może ją spowolnić."
-        )
+    single_core_warning = build_single_core_warning(env.cpu_count)
 
     gil_state = "aktywny" if env.gil_enabled else "wyłączony (free-threading)"
     conclusions = [

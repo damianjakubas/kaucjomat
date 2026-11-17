@@ -87,3 +87,24 @@ class GilBenchmarkError(KaucjomatError):
 
     error_code: str = "GIL_BENCHMARK_ERROR"
     status_code: int = 400
+
+
+class AnalyticsJobBusyError(KaucjomatError):
+    """Wyjątek zgłaszany przy próbie startu zadania analitycznego, gdy inne już trwa."""
+
+    error_code: str = "ANALYTICS_JOB_BUSY"
+    status_code: int = 409
+
+
+class AnalyticsArtifactNotFoundError(KaucjomatError):
+    """Wyjątek zgłaszany, gdy żądany artefakt analityki (np. wykres PNG) nie istnieje."""
+
+    error_code: str = "ANALYTICS_ARTIFACT_NOT_FOUND"
+    status_code: int = 404
+
+
+class AnalyticsDatasetMissingError(KaucjomatError):
+    """Wyjątek zgłaszany, gdy zadanie analityczne nie znajduje wygenerowanego zbioru logów."""
+
+    error_code: str = "ANALYTICS_DATASET_MISSING"
+    status_code: int = 400

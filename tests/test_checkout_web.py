@@ -62,7 +62,8 @@ def test_checkout_semantics_labels_status_and_script_order() -> None:
     assert "Koszyk musi".lower() in response.text.lower()
     assert "KASA SKLEPOWA — TRYB DEMO (Dokumenty niefiskalne)" in response.text
     expected = ["demo_state.js", "app.js", "return_machine_view.js", "return_machine.js",
-                "checkout_contract.js", "checkout_state.js", "checkout_view.js", "checkout.js"]
+                "checkout_contract.js", "checkout_state.js", "checkout_view.js", "checkout.js",
+                "analytics_contract.js", "analytics_view.js", "analytics.js"]
     assert markup.scripts == [f"/static/{name}" for name in expected]
     assert "/static/checkout.css" in markup.styles
 

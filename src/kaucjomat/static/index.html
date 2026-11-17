@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="/static/return_machine.css">
   <link rel="stylesheet" href="/static/voucher_print.css">
   <link rel="stylesheet" href="/static/checkout.css">
+  <link rel="stylesheet" href="/static/analytics.css">
 </head>
 <body>
   <div class="app-shell">
@@ -214,20 +215,47 @@
         <p class="panel-description" data-view-description="analityka">
           Panel statystyk wsadowych, raportów i pomiaru narzutu GIL.
         </p>
-        <div class="panel-grid">
-          <article class="info-card">
-            <h3>Zakres planowany dla modułu analitycznego</h3>
-            <p data-view-scope="analityka">
-              Dwuetapowa analiza logów (wątki I/O + procesy CPU) oraz porównanie czasów wykonania z wykresem PNG.
-            </p>
-          </article>
-          <article class="info-card">
-            <h3>Przetwarzanie lokalne</h3>
-            <p>
-              Dane testowe oraz wyniki pomiarów wydajnościowych będą zapisywane wyłącznie lokalnie w plikach przez pathlib.Path.
-            </p>
-          </article>
+        <p class="checkout-hint" data-view-scope="analityka">Dwuetapowa analiza logów (wątki I/O + procesy CPU) i pomiar GIL z wykresem PNG.</p>
+        <div class="analytics-env" aria-label="Środowisko maszyny"><span id="analytics-cpu">Rdzenie CPU: —</span><span id="analytics-gil">GIL: —</span></div>
+        <p id="analytics-single-core" class="analytics-warning" role="status" hidden></p>
+        <div class="analytics-controls">
+          <label for="analytics-preset">Preset przebiegu</label>
+          <select id="analytics-preset" aria-describedby="analytics-preset-hint" disabled></select>
+          <p id="analytics-preset-hint" class="checkout-hint"></p>
+          <div class="analytics-actions">
+            <button type="button" id="analytics-generate" data-analytics-kind="generate" disabled>Generuj zbiór logów</button>
+            <button type="button" id="analytics-analysis" data-analytics-kind="analysis" disabled>Uruchom analizę dwuetapową</button>
+            <button type="button" id="analytics-benchmark" data-analytics-kind="benchmark" disabled>Uruchom benchmark GIL</button>
+            <button type="button" id="analytics-reference-btn" disabled>Pokaż wyniki referencyjne</button>
+          </div>
         </div>
+        <div class="analytics-status">
+          <p id="analytics-status" role="status" aria-live="polite">Ładowanie kontekstu analityki…</p>
+          <progress id="analytics-progress" max="100" aria-label="Postęp zadania" hidden></progress>
+          <p id="analytics-dataset" class="checkout-hint"></p>
+        </div>
+        <div class="analytics-grid">
+          <section class="analytics-card" aria-labelledby="analytics-stage1-heading">
+            <h3 id="analytics-stage1-heading">Etap 1 — odczyt plików (wątki)</h3>
+            <ul id="analytics-stage1" class="analytics-facts"><li>Brak wyniku — uruchom analizę dwuetapową.</li></ul>
+          </section>
+          <section class="analytics-card" aria-labelledby="analytics-stage2-heading">
+            <h3 id="analytics-stage2-heading">Etap 2 — obliczenia (procesy spawn)</h3>
+            <ul id="analytics-stage2" class="analytics-facts"><li>Brak wyniku — uruchom analizę dwuetapową.</li></ul>
+          </section>
+        </div>
+        <section id="analytics-result" class="analytics-card" aria-labelledby="analytics-result-heading">
+          <h3 id="analytics-result-heading">Benchmark GIL: sekwencyjnie, wątki, procesy</h3>
+          <p id="analytics-result-label" class="analytics-label">Wyniki referencyjne (DEMO)</p>
+          <p id="analytics-result-meta" class="checkout-hint"></p>
+          <div class="analytics-table-wrap"><table class="analytics-table">
+            <caption>Czasy strategii (mediana, średnia, min, max) i przyspieszenie względem sekwencyjnego</caption>
+            <thead><tr><th scope="col">Strategia</th><th scope="col">Pracownicy</th><th scope="col">Mediana</th><th scope="col">Średnia</th><th scope="col">Min</th><th scope="col">Max</th><th scope="col">Speedup</th></tr></thead>
+            <tbody id="analytics-table-body"></tbody>
+          </table></div>
+          <ul id="analytics-conclusions"></ul>
+          <img id="analytics-chart" alt="Wykres czasów benchmarku GIL" hidden>
+        </section>
       </section>
     </main>
 
@@ -246,5 +274,8 @@
   <script src="/static/checkout_state.js" defer></script>
   <script src="/static/checkout_view.js" defer></script>
   <script src="/static/checkout.js" defer></script>
+  <script src="/static/analytics_contract.js" defer></script>
+  <script src="/static/analytics_view.js" defer></script>
+  <script src="/static/analytics.js" defer></script>
 </body>
 </html>

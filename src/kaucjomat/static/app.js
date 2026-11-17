@@ -17,6 +17,9 @@ const errorMessagesBySource = {
   checkoutQuote: "",
   checkoutAction: "",
   checkoutStorage: "",
+  analyticsContext: "",
+  analyticsReference: "",
+  analyticsJob: "",
 };
 
 /**
@@ -47,9 +50,9 @@ async function readJsonSafely(response) {
 }
 
 /**
- * Wyświetla lub ukrywa baner błędu komunikacji z API z rozdzieleniem źródeł health, view, returns i checkout.
+ * Wyświetla lub ukrywa baner błędu komunikacji z API z rozdzieleniem źródeł health, view, returns, checkout i analytics.
  * @param {string} message - Treść błędu po polsku; pusty napis czyści dane źródło.
- * @param {"health"|"view"|"returns"|"returnsCards"|"returnsSession"|"returnsAction"|"returnsVoucher"|"checkoutContext"|"checkoutQuote"|"checkoutAction"|"checkoutStorage"} [source="view"] - Nazwa źródła zgłaszającego komunikat.
+ * @param {"health"|"view"|"returns"|"returnsCards"|"returnsSession"|"returnsAction"|"returnsVoucher"|"checkoutContext"|"checkoutQuote"|"checkoutAction"|"checkoutStorage"|"analyticsContext"|"analyticsReference"|"analyticsJob"} [source="view"] - Nazwa źródła zgłaszającego komunikat.
  * @returns {void}
  */
 function renderErrorBanner(message, source = "view") {

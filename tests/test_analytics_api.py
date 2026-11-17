@@ -162,3 +162,42 @@ def test_single_core_warning_in_analysis_and_benchmark(
         body = _run_job(client, kind)
         assert body["status"] == "succeeded", body
         assert "jednordzeniowe" in body["result"]["single_core_warning"]
+
+
+@pytest.mark.parametrize("contents", [None, "{", "{}"])
+def test_reference_error_hides_path(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, contents: str | None,
+) -> None:
+    """Brak lub uszkodzenie referencji zachowuje kod błędu bez ujawniania katalogu."""
+    from kaucjomat import gil_chart
+
+    private_dir = tmp_path / "private_reference"
+    private_dir.mkdir()
+    if contents is not None:
+        (private_dir / REFERENCE_BENCHMARK_JSON_NAME).write_text(contents, encoding="utf-8")
+    monkeypatch.setattr(gil_chart, "get_reference_benchmark_dir", lambda: private_dir)
+    response = client.get("/api/analytics/reference")
+    assert response.status_code == 400
+    body = response.json()
+    assert body["error_code"] == "GIL_BENCHMARK_ERROR"
+    assert body["message"] == (
+        "Nie udało się wczytać wyników referencyjnych; szczegóły zapisano w logu serwera."
+    )
+    assert "private_reference" not in response.text
+    _assert_no_absolute_paths(body)
+
+
+def test_generate_io_error_hides_path(tmp_path: Path) -> None:
+    """Zablokowany katalog generowania daje błąd zadania bez lokalnej ścieżki."""
+    private_path = tmp_path / "private_analytics"
+    private_path.write_text("plik zamiast katalogu", encoding="utf-8")
+    app = create_app(state_file=tmp_path / "state.json", analytics_dir=private_path)
+    with TestClient(app) as test_client:
+        body = _run_job(test_client, "generate")
+    assert body["status"] == "failed"
+    assert body["error_code"] == "BATCH_LOG_ANALYSIS_ERROR"
+    assert body["error_message"] == (
+        "Nie udało się wykonać zadania analitycznego; szczegóły zapisano w logu serwera."
+    )
+    assert "private_analytics" not in json.dumps(body)
+    _assert_no_absolute_paths(body)

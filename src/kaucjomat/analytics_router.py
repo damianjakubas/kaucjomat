@@ -21,10 +21,13 @@ from kaucjomat.config import (
     REFERENCE_BENCHMARK_PNG_NAME,
     get_reference_benchmark_dir,
 )
-from kaucjomat.exceptions import AnalyticsArtifactNotFoundError
+from kaucjomat.exceptions import AnalyticsArtifactNotFoundError, GilBenchmarkError
 from kaucjomat.gil_benchmark import collect_gil_environment_info
 from kaucjomat.gil_conclusions import build_single_core_warning
+from kaucjomat.logging_config import get_logger, sanitize_for_log
 from kaucjomat.schemas import ErrorResponse
+
+_LOGGER = get_logger("kaucjomat.analytics")
 
 _REFERENCE_CHART_URL: str = "/api/analytics/reference/chart"
 
@@ -78,9 +81,16 @@ def create_analytics_router(manager: AnalyticsJobManager) -> APIRouter:
         # Import leniwy: gil_chart ładuje matplotlib, którego nie chcemy przy starcie serwera.
         from kaucjomat.gil_chart import load_reference_gil_benchmark_dict
 
-        return AnalyticsReferenceResponse(
-            benchmark=load_reference_gil_benchmark_dict(), chart_url=_REFERENCE_CHART_URL,
-        )
+        try:
+            benchmark = load_reference_gil_benchmark_dict()
+        except GilBenchmarkError as exc:
+            # Szczegóły pliku referencji pozostają w logu, poza odpowiedzią HTTP.
+            _LOGGER.warning("Błąd odczytu referencji: %s", sanitize_for_log(exc.message, max_length=200))
+            raise GilBenchmarkError(
+                "Nie udało się wczytać wyników referencyjnych; szczegóły zapisano w logu serwera.",
+                error_code=exc.error_code, status_code=exc.status_code,
+            ) from exc
+        return AnalyticsReferenceResponse(benchmark=benchmark, chart_url=_REFERENCE_CHART_URL)
 
     @router.get("/reference/chart", response_class=FileResponse)
     def read_reference_chart() -> FileResponse:

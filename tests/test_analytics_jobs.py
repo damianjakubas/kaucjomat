@@ -73,10 +73,10 @@ def test_second_start_while_running_raises_busy(tmp_path: Path) -> None:
 
 
 def test_domain_error_maps_to_failed_with_code(tmp_path: Path) -> None:
-    """Błąd domenowy daje status failed z jego kodem i komunikatem, slot jest wolny."""
+    """Błąd domenowy zachowuje kod, ukrywa szczegóły w komunikacie i zwalnia slot."""
     def failing(context: AnalyticsJobContext, preset: AnalyticsPreset, base_dir: Path) -> dict[str, Any]:
         """Zadanie zgłaszające błąd silnika."""
-        raise GilBenchmarkError("Awaria testowa")
+        raise GilBenchmarkError("Awaria testowa: C:/private/benchmark.json")
 
     manager = _manager(tmp_path, benchmark=failing, generate=_quick_task)
     manager.start("benchmark", "quick")
@@ -84,7 +84,8 @@ def test_domain_error_maps_to_failed_with_code(tmp_path: Path) -> None:
     snap = manager.current()
     assert snap is not None
     assert (snap.status, snap.error_code, snap.error_message) == (
-        "failed", "GIL_BENCHMARK_ERROR", "Awaria testowa",
+        "failed", "GIL_BENCHMARK_ERROR",
+        "Nie udało się wykonać zadania analitycznego; szczegóły zapisano w logu serwera.",
     )
     manager.start("generate", "quick")
     assert manager.wait(5)

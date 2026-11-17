@@ -16,7 +16,9 @@ from typing import Any, Literal
 from kaucjomat.analytics_presets import AnalyticsPreset, get_preset
 from kaucjomat.analytics_tasks import TASKS, AnalyticsTask
 from kaucjomat.config import get_web_analytics_dir
-from kaucjomat.exceptions import AnalyticsJobBusyError, InvalidConfigurationError, KaucjomatError
+from kaucjomat.exceptions import (
+    AnalyticsDatasetMissingError, AnalyticsJobBusyError, InvalidConfigurationError, KaucjomatError,
+)
 from kaucjomat.logging_config import get_logger, sanitize_for_log
 
 _LOGGER = get_logger("kaucjomat.analytics")
@@ -195,7 +197,13 @@ class AnalyticsJobManager:
                 "Zadanie analityki %s nieudane [%s]: %s", job_id, exc.error_code,
                 sanitize_for_log(exc.message, max_length=200),
             )
-            self._finish(job_id, "failed", None, exc.error_code, exc.message)
+            # Silniki CLI podają lokalne ścieżki; do HTTP trafia wyłącznie bezpieczny opis.
+            message = (
+                f"Najpierw wygeneruj zbiór logów (preset {preset.label})."
+                if isinstance(exc, AnalyticsDatasetMissingError)
+                else "Nie udało się wykonać zadania analitycznego; szczegóły zapisano w logu serwera."
+            )
+            self._finish(job_id, "failed", None, exc.error_code, message)
         except Exception:
             # Szczegóły trafiają wyłącznie do logu; klient dostaje ogólny kod.
             _LOGGER.exception("Nieoczekiwany błąd zadania analityki %s.", job_id)

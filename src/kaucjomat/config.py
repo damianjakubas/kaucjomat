@@ -100,6 +100,21 @@ def get_default_benchmark_output_dir() -> Path:
     return get_project_root() / "data" / "generated" / "benchmark"
 
 
+def get_web_analytics_dir() -> Path:
+    """Zwraca katalog roboczy przebiegów analityki uruchamianych z przeglądarki."""
+    return get_project_root() / "data" / "generated" / "web_analytics"
+
+
+def get_web_analytics_log_dir(preset_id: str) -> Path:
+    """Zwraca katalog logów wsadowych dla wskazanego presetu przebiegów z przeglądarki."""
+    return get_web_analytics_dir() / "logs" / preset_id
+
+
+def get_web_benchmark_dir() -> Path:
+    """Zwraca katalog wyników i wykresu benchmarku z przebiegów z przeglądarki."""
+    return get_web_analytics_dir() / "benchmark"
+
+
 def get_reference_benchmark_dir() -> Path:
     """Zwraca wersjonowany w Git katalog z referencyjnymi artefaktami benchmarku."""
     return get_package_dir() / "data" / "reference"

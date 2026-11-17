@@ -31,6 +31,9 @@ from kaucjomat.logging_config import get_logger
 _LOGGER = get_logger("kaucjomat.batch")
 _STRATEGY_ORDER: tuple[str, ...] = ("sequential", "threads", "processes_spawn")
 
+# Callback postępu: (liczba wykonanych przebiegów, liczba wszystkich przebiegów, strategy_id).
+ProgressCallback = Callable[[int, int, str], None]
+
 
 @dataclass(frozen=True, slots=True)
 class GilEnvironmentInfo:
@@ -195,8 +198,12 @@ def run_gil_benchmark(
     log_dir: Path | None = None, *, repeats: int = 3, workers: int | None = None,
     chunk_size: int = 1000, io_workers: int | None = None,
     work_iterations: int = 30, auto_generate: bool = True,
+    on_progress: ProgressCallback | None = None,
 ) -> GilBenchmarkReport:
-    """Przeprowadza porównawczy benchmark GIL dla strategii sekwencyjnej, wątkowej i spawn."""
+    """Przeprowadza porównawczy benchmark GIL dla strategii sekwencyjnej, wątkowej i spawn.
+
+    Opcjonalny ``on_progress`` jest wołany po każdej parze powtórzenie × strategia.
+    """
     for value, name, allow_none in (
         (repeats, "repeats", False), (workers, "workers", True),
         (chunk_size, "chunk_size", False), (io_workers, "io_workers", True),
@@ -223,6 +230,8 @@ def run_gil_benchmark(
     }
     runs_by_strategy: dict[str, list[float]] = {key: [] for key in _STRATEGY_ORDER}
     baseline_metrics: ChunkAnalysisResult | None = None
+    total_runs = repeats * len(_STRATEGY_ORDER)
+    done_runs = 0
     for repeat_idx in range(1, repeats + 1):
         for strategy_id in _STRATEGY_ORDER:
             try:
@@ -235,6 +244,9 @@ def run_gil_benchmark(
             elif result.metrics != baseline_metrics:
                 raise GilBenchmarkError(f"Niezgodność metryk w strategii '{strategy_id}' (próba {repeat_idx}).")
             runs_by_strategy[strategy_id].append(result.cpu_elapsed_ms)
+            done_runs += 1
+            if on_progress is not None:
+                on_progress(done_runs, total_runs, strategy_id)
 
     assert baseline_metrics is not None
     labels = {key: spec[0] for key, spec in runners.items()}

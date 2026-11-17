@@ -10,6 +10,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from kaucjomat.analytics_jobs import AnalyticsJobManager
+from kaucjomat.analytics_router import create_analytics_router
 from kaucjomat.checkout_router import create_checkout_router
 from kaucjomat.config import (
     APP_NAME,
@@ -22,6 +24,7 @@ from kaucjomat.config import (
     ViewDefinition,
     get_default_return_state_file,
     get_static_dir,
+    get_web_analytics_dir,
 )
 from kaucjomat.exceptions import InvalidConfigurationError, KaucjomatError, ViewNotFoundError
 from kaucjomat.logging_config import configure_logging, get_logger, sanitize_for_log
@@ -86,7 +89,17 @@ def _resolve_state_file(state_file: Path | None) -> Path:
     return get_default_return_state_file()
 
 
-def create_app(state_file: Path | None = None) -> FastAPI:
+def _resolve_analytics_dir(analytics_dir: Path | None) -> Path:
+    """Wyznacza katalog roboczy widoku Analityka z argumentu, środowiska lub domyślnej ścieżki."""
+    if analytics_dir is not None:
+        return Path(analytics_dir)
+    env_dir = os.getenv("KAUCJOMAT_ANALYTICS_DIR")
+    if env_dir and env_dir.strip():
+        return Path(env_dir.strip())
+    return get_web_analytics_dir()
+
+
+def create_app(state_file: Path | None = None, analytics_dir: Path | None = None) -> FastAPI:
     """Tworzy i konfiguruje instancję aplikacji FastAPI bez efektów ubocznych przy imporcie."""
     # Uruchomienie przez uvicorn --factory (także proces potomny --reload) odtwarza konfigurację ze środowiska.
     if not get_logger().handlers:
@@ -105,6 +118,8 @@ def create_app(state_file: Path | None = None) -> FastAPI:
     )
     resolved_state_file = _resolve_state_file(state_file)
     return_store = ReturnStateStore(resolved_state_file)
+    # Menedżer zadań jest tworzony na instancję aplikacji, więc testy nie współdzielą slotu.
+    analytics_manager = AnalyticsJobManager(_resolve_analytics_dir(analytics_dir))
 
     @app.exception_handler(KaucjomatError)
     async def handle_kaucjomat_error(request: Request, exc: KaucjomatError) -> JSONResponse:
@@ -184,5 +199,6 @@ def create_app(state_file: Path | None = None) -> FastAPI:
 
     app.include_router(create_return_router(return_store))
     app.include_router(create_checkout_router(return_store))
+    app.include_router(create_analytics_router(analytics_manager))
 
     return app

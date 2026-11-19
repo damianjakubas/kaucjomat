@@ -3,7 +3,7 @@
 **KaucjaSim** to lokalny, interaktywny symulator polskiego systemu kaucyjnego w trybie **DEMO**, zbudowany w Pythonie 3.13+ (`FastAPI`, `uvicorn`, `matplotlib`) z interfejsem webowym HTML/CSS/vanilla JS oraz narzędziami CLI (`argparse`).
 
 Aplikacja udostępnia trzy widoki w jednej powłoce przeglądarkowej:
-1. **Butelkomat (`DEMO • Automat`)** — wrzucanie i przeciąganie gotowych kart opakowań (PET, puszka, szkło, przypadki odrzucenia i duplikaty ID egzemplarza), walidacja w czasie rzeczywistym i wystawianie numerowanego bonu DEMO ważnego 100 dni z widokiem do druku/PDF.
+1. **Butelkomat (`DEMO • Automat`)** — graficzny front automatu z okrągłym wlotem, wyświetlaczem LCD (status, opakowanie, EAN, ID egzemplarza, czas skanera i czas HTTP+DOM), szczeliną wydruku i dziennikiem prób. Półka 8 ilustrowanych kart opakowań (PET, puszka, szkło, przypadki odrzucenia i duplikaty ID egzemplarza): kartę chwyta się myszą lub palcem (Pointer Events) i upuszcza we wlocie, a przycisk „Wrzuć do automatu” zostaje ścieżką dla klawiatury i czytników ekranu. Poniżej 821 px szerokości (układ jednokolumnowy) przeciąganie jest wyłączone i wrzut działa tylko przyciskiem; ruch można wyłączyć ustawieniem systemowym „zmniejsz ruch” (`prefers-reduced-motion`). Walidacja działa w czasie rzeczywistym, a po zakończeniu sesji ze szczeliny wysuwa się numerowany bon DEMO ważny 100 dni z widokiem do druku/PDF.
 2. **Kasa Sklepowa (`DEMO • Kasa`)** — kompletowanie koszyka zakupowego, przyjmowanie butelek szklanych wielokrotnego użytku (do 1,5 l, `+1,00 zł`), przegląd statusów bonów (`AKTYWNY`, `ZUŻYTY`, `WYGASŁY`) oraz rozliczanie bonu na zakupy lub wypłatę gotówki DEMO.
 3. **Analityka i Benchmark GIL (`DEMO • Benchmark`)** — prezentacja wyników referencyjnych i wykresu PNG, uruchamianie na żywo generatora logów, dwuetapowej analizy wsadowej (wątki I/O + procesy CPU) oraz porównawczego benchmarku GIL.
 
@@ -75,7 +75,7 @@ Obsługiwane zmienne środowiskowe serwera webowego:
 
 ```bash
 uv run pytest -q
-node --test tests/analytics_client.test.js tests/checkout_glass_client.test.js
+node --test tests/analytics_client.test.js tests/checkout_glass_client.test.js tests/return_machine_client.test.js
 ```
 
 ---
@@ -141,7 +141,10 @@ W standardowym interpreterze CPython 3.13.5 Global Interpreter Lock (GIL) gwaran
 │   ├── batch_*.py, gil_*.py, analytics_*.py# Wątki I/O, procesy spawn, benchmark GIL
 │   ├── data/reference/                     # Wersjonowane wyniki referencyjne i PNG
 │   └── static/                             # Frontend HTML/CSS/vanilla JS (offline)
-└── tests/                                  # 663 testy Pythona (pytest) + 44 testy JS
+│       ├── tactile_{shell,machine,voucher,shelf}.css  # Styl „Tactile Papercraft”: powłoka, front automatu, bon, półka
+│       ├── return_machine_{art,view,fx,drag}.js       # Butelkomat: grafiki kart, render, efekty, przeciąganie (Pointer Events)
+│       └── assets/                         # Ilustracje SVG opakowań (lokalne, bez zewnętrznych zasobów)
+└── tests/                                  # 690 testów Pythona (pytest) + 66 testów JS
 ```
 
 **Elementy dodatkowe w projekcie:** automatyczne testy jednostkowe, integracyjne i strukturalne (`pytest`) oraz klienckie (`node --test`), wielopodkomendowe CLI (`argparse`) obok serwera webowego, spójne logowanie zdarzeń (`logging`) z sanitacją danych wejściowych oraz automatyczne generowanie porównawczego wykresu PNG (`matplotlib`).

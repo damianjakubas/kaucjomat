@@ -17,8 +17,14 @@ def _threads_conclusion(
     head = (f"Wątki ({thr.workers} pracowników) uzyskały medianę {thr.median_ms:.1f} ms "
             f"({thr.speedup_vs_sequential:.2f}x względem sekwencyjnego {seq.median_ms:.1f} ms)")
     if thr.speedup_vs_sequential >= _SPEEDUP_THRESHOLD:
-        tail = ("co wskazuje na równoległe wykonanie kodu bajtowego"
-                + (" mimo aktywnego GIL." if env.gil_enabled else " (build free-threading)."))
+        if env.gil_enabled:
+            tail = (
+                "jednak przy aktywnym GIL nie oznacza to równoległego wykonywania "
+                "kodu bajtowego Pythona — zysk może wynikać z operacji zwalniających GIL "
+                "(I/O lub kod natywny) albo wahań krótkiego pomiaru."
+            )
+        else:
+            tail = "co wskazuje na równoległe wykonanie kodu bajtowego (build free-threading)."
     elif env.gil_enabled:
         tail = "co potwierdza serializację kodu bajtowego Pythona przez GIL w jednym procesie."
     else:

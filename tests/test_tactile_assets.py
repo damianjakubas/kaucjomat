@@ -16,7 +16,7 @@ SVG_NAMES = [
     "glass-500.svg", "carton-milk.svg", "pet-jug-5000.svg",
 ]
 TACTILE_CSS = ["tactile_shell.css", "tactile_machine.css", "tactile_voucher.css", "tactile_shelf.css"]
-TACTILE_JS = ["return_machine_art.js", "return_machine_fx.js"]
+TACTILE_JS = ["return_machine_art.js", "return_machine_fx.js", "return_machine_drag.js"]
 VOID_TAGS = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
 
 
@@ -138,6 +138,28 @@ def test_print_rules_hide_machine_front_and_flatten_voucher() -> None:
         assert selector in printed, f"Brak ukrycia {selector} w druku."
     assert "animation: none" in printed and "transform: none" in printed
     assert "#issued-voucher-card::before" in printed
+
+
+def test_html5_drag_and_drop_is_gone_from_the_butelkomat() -> None:
+    """Widok, kontroler i HTML nie używają natywnego DnD; zostaje tylko `img.draggable = false` w module grafiki."""
+    for name in ("return_machine_view.js", "return_machine.js", "index.html"):
+        content = _read(STATIC_DIR / name)
+        for token in ('draggable="true"', "draggable', 'true'", "dragstart", "dragover", "dataTransfer"):
+            assert token not in content, f"Natywny DnD ({token}) w {name}."
+        assert 'setAttribute("draggable"' not in content
+    assert "image.draggable = false" in _read(STATIC_DIR / "return_machine_art.js")
+
+
+def test_drag_controller_is_wired_and_motion_can_be_disabled() -> None:
+    """Kontroler Pointer Events jest podpięty w `initReturnMachine`, a ruch tactile podlega `prefers-reduced-motion`."""
+    controller = _read(STATIC_DIR / "return_machine.js")
+    assert "KaucjomatReturnDrag.attachShelfDrag" in controller
+    drag = _read(STATIC_DIR / "return_machine_drag.js")
+    assert "prefers-reduced-motion" in drag and "setPointerCapture" in drag
+    assert "prefers-reduced-motion" in _read(STATIC_DIR / "tactile_shell.css")
+    shelf = _read(STATIC_DIR / "tactile_shelf.css")
+    assert "touch-action: none" in shelf and "min-width: 821px" in shelf
+    assert ".package-drag-ghost" in shelf and "pointer-events: none" in shelf
 
 
 def test_screen_voucher_and_print_button_styles_live_in_tactile_sheets() -> None:

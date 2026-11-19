@@ -243,14 +243,7 @@ function renderSessionState(session) {
 function buildPackageCardElement(card, onDeposit) {
   const article = document.createElement("article");
   article.className = `package-card package-card-group-${card.group || "valid"}`;
-  article.setAttribute("draggable", "true");
   article.dataset.cardId = card.card_id;
-  article.addEventListener("dragstart", (event) => {
-    if (event.dataTransfer) {
-      event.dataTransfer.setData("text/plain", card.card_id);
-      event.dataTransfer.effectAllowed = "copy";
-    }
-  });
 
   const head = document.createElement("div");
   head.className = "package-card-head";

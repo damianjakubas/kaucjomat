@@ -70,6 +70,49 @@ test("Klasa rozmiaru wynika z pojemności 500, 1500 i 5000 ml", () => {
   assert.equal(art.resolvePackageArt(card({ volume_ml: 5000 })).sizeClass, "is-large");
 });
 
+/** Ładuje kontroler przeciągania w odizolowanej pamięci z samym `window`, bez DOM. */
+function loadDrag() {
+  const sandbox = createContext({ window: {} });
+  runInContext(readFileSync(join(staticDir, "return_machine_drag.js"), "utf8"), sandbox);
+  return sandbox.window.KaucjomatReturnDrag;
+}
+
+const SQUARE = { left: 100, top: 50, width: 200, height: 200 };
+
+test("Kontroler przeciągania ładuje się w vm bez DOM i eksportuje API", () => {
+  const drag = loadDrag();
+  assert.equal(typeof drag.attachShelfDrag, "function");
+  assert.equal(typeof drag.isPointInsideInlet, "function");
+});
+
+test("Trafienie: środek i punkt na krawędzi okręgu liczą się, róg prostokąta nie", () => {
+  const { isPointInsideInlet } = loadDrag();
+  assert.equal(isPointInsideInlet({ x: 200, y: 150 }, SQUARE), true);
+  assert.equal(isPointInsideInlet({ x: 300, y: 150 }, SQUARE), true);
+  assert.equal(isPointInsideInlet({ x: 200, y: 50 }, SQUARE), true);
+  assert.equal(isPointInsideInlet({ x: 301, y: 150 }, SQUARE), false);
+  assert.equal(isPointInsideInlet({ x: 105, y: 55 }, SQUARE), false);
+  assert.equal(isPointInsideInlet({ x: 299, y: 249 }, SQUARE), false);
+});
+
+test("Trafienie: promień wynika z krótszego boku prostokąta niekwadratowego", () => {
+  const { isPointInsideInlet } = loadDrag();
+  const wide = { left: 0, top: 0, width: 400, height: 100 };
+  assert.equal(isPointInsideInlet({ x: 200, y: 50 }, wide), true);
+  assert.equal(isPointInsideInlet({ x: 249, y: 50 }, wide), true);
+  assert.equal(isPointInsideInlet({ x: 251, y: 50 }, wide), false);
+  assert.equal(isPointInsideInlet({ x: 200, y: 101 }, wide), false);
+  const tall = { left: 0, top: 0, width: 100, height: 400 };
+  assert.equal(isPointInsideInlet({ x: 50, y: 251 }, tall), false);
+  assert.equal(isPointInsideInlet({ x: 50, y: 249 }, tall), true);
+  assert.equal(isPointInsideInlet({ x: 50, y: 149 }, tall), false);
+});
+
+test("Trafienie: wlot bez rozmiaru (ukryty) nigdy nie przyjmuje karty", () => {
+  const { isPointInsideInlet } = loadDrag();
+  assert.equal(isPointInsideInlet({ x: 0, y: 0 }, { left: 0, top: 0, width: 0, height: 0 }), false);
+});
+
 /** Ładuje moduł efektów z atrapą DOM zawierającą front automatu i kontrolkę stanu. */
 function loadFx() {
   const front = { dataset: {} };

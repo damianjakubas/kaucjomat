@@ -101,12 +101,12 @@
             <div class="machine-front" data-machine-state="idle">
               <div class="machine-plate"><span class="machine-name">BUTELKOMAT DEMO</span><span class="machine-led" id="machine-led" role="status">GOTOWY</span></div>
               <div class="machine-body">
-                <div id="deposit-dropzone" class="deposit-dropzone" role="region" aria-label="Wlot butelkomatu DEMO — upuść kartę opakowania">
+                <div id="deposit-dropzone" class="deposit-dropzone" role="region" aria-label="Wlot butelkomatu DEMO — przeciągnij tu opakowanie z półki">
                   <span class="dropzone-badge">WLOT AUTOMATU DEMO</span><span class="dropzone-arrow">DNEM W PRZÓD</span>
                 </div>
                 <div id="scanner-result-box" class="scanner-result-box" aria-live="polite">
                   <strong class="scanner-status-title" id="scanner-status-title">GOTOWY DO SKANU (DEMO)</strong>
-                  <p class="scanner-message" id="scanner-status-message">Wybierz opakowanie z półki testowej po prawej stronie, aby sprawdzić reguły systemu kaucyjnego.</p>
+                  <p class="scanner-message" id="scanner-status-message">Wybierz opakowanie z półki testowej, aby sprawdzić reguły systemu kaucyjnego.</p>
                   <dl class="scanner-lcd">
                     <div><dt>Opakowanie</dt><dd id="scanner-package-value">—</dd></div>
                     <div><dt>EAN</dt><dd id="scanner-ean-value">—</dd></div>
@@ -116,7 +116,7 @@
                   <div class="scanner-meta" id="scanner-status-meta">Oczekiwanie na pierwszą próbę zwrotu.</div>
                 </div>
               </div>
-              <p class="dropzone-title">Przeciągnij kartę opakowania do wlotu lub kliknij „Wrzuć do automatu”</p>
+              <p class="dropzone-title"><span class="hint-drag">Przeciągnij opakowanie do wlotu lub kliknij</span><span class="hint-tap">Kliknij</span> „Wrzuć do automatu”</p>
             </div>
             <!-- Szczelina wydruku z ostatnio wystawionym bonem DEMO (karta przystosowana również do @media print) -->
             <div class="printer-slot">
@@ -286,6 +286,7 @@
   <script src="/static/return_machine_art.js" defer></script>
   <script src="/static/return_machine_view.js" defer></script>
   <script src="/static/return_machine_fx.js" defer></script>
+  <script src="/static/return_machine_drag.js" defer></script>
   <script src="/static/return_machine.js" defer></script>
   <script src="/static/checkout_contract.js" defer></script>
   <script src="/static/checkout_state.js" defer></script>

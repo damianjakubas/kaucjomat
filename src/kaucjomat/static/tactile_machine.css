@@ -75,8 +75,7 @@
   box-shadow: 0 0 0 6px var(--tp-state), 0 0 0 8px var(--tp-ink), var(--tp-shadow-4);
   transition: box-shadow var(--tp-dur) var(--tp-ease);
 }
-.deposit-dropzone.is-drop-target,
-.deposit-dropzone.is-dragover { box-shadow: 0 0 0 10px var(--tp-led-soft), 0 0 0 12px var(--tp-ink), var(--tp-shadow-4); transform: none; }
+.deposit-dropzone.is-drop-target { box-shadow: 0 0 0 10px var(--tp-led-soft), 0 0 0 12px var(--tp-ink), var(--tp-shadow-4); transform: none; }
 .dropzone-badge {
   max-width: 82%;
   padding: 3px 7px;

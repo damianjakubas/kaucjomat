@@ -139,7 +139,7 @@ body { background: var(--tp-surface); color: var(--tp-ink); }
   font-family: var(--tp-mono);
 }
 
-/* Ruch wyłączany globalnie, w tym animacje dodawane w kolejnych modułach */
+/* Ruch wyłączany globalnie: obejmuje też ducha przeciągania (.package-drag-ghost) i animacje wpadania oraz powrotu; skrypt dodatkowo pomija sam lot */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation: none !important;

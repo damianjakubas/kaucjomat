@@ -17,7 +17,6 @@
   min-width: 0;
   padding: 10px;
   gap: 8px;
-  cursor: grab;
   background: var(--tp-white);
   border: 2px solid var(--tp-ink);
   border-radius: 6px;
@@ -91,6 +90,39 @@
 .package-card-group-invalid .btn-deposit-card { background: #dbe4ff; color: var(--tp-ink); }
 .package-card-group-invalid .btn-deposit-card:hover { background: #c9d6ff; }
 
+/* Przeciąganie do wlotu (Pointer Events): chwyt tylko w układzie dwukolumnowym, poniżej strona przewija się normalnie */
+.hint-tap { display: none; }
+@media (min-width: 821px) {
+  .package-card-art { touch-action: none; cursor: grab; }
+}
+.package-card.is-dragging { opacity: 0.45; }
+.package-card.is-dragging .package-card-art { cursor: grabbing; }
+.package-drag-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: var(--tp-z-drag);
+  background: var(--tp-white);
+  box-shadow: var(--tp-shadow-4);
+  cursor: grabbing;
+  pointer-events: none;
+  will-change: transform;
+}
+.package-drag-ghost.is-dropping { animation: tp-drop var(--drag-ms, 350ms) var(--tp-ease) 1 forwards; }
+.package-drag-ghost.is-returning { animation: tp-return var(--drag-ms, 260ms) var(--tp-ease) 1 forwards; }
+@keyframes tp-drop {
+  from { transform: translate(var(--drag-from-x), var(--drag-from-y)) rotate(4deg) scale(1); opacity: 1; }
+  to { transform: translate(var(--drag-to-x), var(--drag-to-y)) rotate(0deg) scale(0.15); opacity: 0; }
+}
+@keyframes tp-return {
+  from { transform: translate(var(--drag-from-x), var(--drag-from-y)) rotate(4deg); }
+  to { transform: translate(var(--drag-to-x), var(--drag-to-y)) rotate(0deg); }
+}
+
+@media (max-width: 820px) {
+  .hint-drag { display: none; }
+  .hint-tap { display: inline; }
+}
 @media (max-width: 480px) {
   .package-cards-shelf { grid-template-columns: 1fr; }
 }

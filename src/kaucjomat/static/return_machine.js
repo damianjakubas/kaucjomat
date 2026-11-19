@@ -232,7 +232,7 @@ async function resetReturnDemoState() {
 }
 
 /**
- * Inicjalizuje strefę Drag & Drop wlotu butelkomatu, przyciski bonu/druku/resetu oraz startowe ładowanie danych.
+ * Podpina przeciąganie kart do wlotu butelkomatu, przyciski bonu/druku/resetu oraz startowe ładowanie danych.
  * @returns {void}
  */
 function initReturnMachine() {
@@ -242,18 +242,11 @@ function initReturnMachine() {
   const printBtn = document.getElementById("print-voucher-btn");
   if (!dropzone) return;
 
-  dropzone.addEventListener("dragover", (event) => {
-    event.preventDefault();
-    if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
-    dropzone.classList.add("is-dragover");
-  });
-  dropzone.addEventListener("dragleave", () => dropzone.classList.remove("is-dragover"));
-  dropzone.addEventListener("drop", (event) => {
-    event.preventDefault();
-    dropzone.classList.remove("is-dragover");
-    const cardId = event.dataTransfer ? event.dataTransfer.getData("text/plain").trim() : "";
-    if (cardId) void submitPackageDeposit(cardId);
-  });
+  const shelf = document.getElementById("package-cards-shelf");
+  // Przeciąganie (mysz i dotyk) to tylko inna droga do tej samej funkcji co przycisk „Wrzuć”.
+  if (shelf && window.KaucjomatReturnDrag) {
+    window.KaucjomatReturnDrag.attachShelfDrag(shelf, dropzone, (cardId) => { void submitPackageDeposit(cardId); });
+  }
   if (issueBtn) issueBtn.addEventListener("click", () => { void issueSessionVoucher(); });
   if (printBtn) printBtn.addEventListener("click", () => { window.print(); });
   if (resetBtn) resetBtn.addEventListener("click", () => { void resetReturnDemoState(); });

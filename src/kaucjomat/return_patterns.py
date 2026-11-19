@@ -1,4 +1,4 @@
-"""Prekompilowane wyrażenia regularne i parsery kodów kaucyjnych (KZ-05)."""
+"""Prekompilowane wyrażenia regularne i parsery kodów kaucyjnych."""
 
 from __future__ import annotations
 

@@ -158,7 +158,7 @@ def test_instance_serial_regex_named_groups() -> None:
 
 
 def test_all_predefined_cards_produce_expected_decisions() -> None:
-    """Sprawdza komplet 8 predefiniowanych kart testowych DEMO (`KZ-13`)."""
+    """Sprawdza komplet 8 predefiniowanych kart testowych DEMO."""
     cards = get_test_cards()
     assert len(cards) == 8
 

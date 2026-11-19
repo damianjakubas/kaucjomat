@@ -1,0 +1,140 @@
+/* Front automatu w stylu Tactile Papercraft: tabliczka, wlot, LCD, szczelina wydruku z bonem i dziennik (offline) */
+.machine-front {
+  --tp-state: var(--tp-led);
+  padding: 14px;
+  background: var(--tp-emerald);
+  border: 2px solid var(--tp-ink);
+  border-radius: 10px;
+  box-shadow: var(--tp-shadow-4);
+}
+.machine-front[data-machine-state="scanning"] { --tp-state: #ffb347; }
+.machine-front[data-machine-state="accepted"] { --tp-state: var(--tp-led); }
+.machine-front[data-machine-state="redirected"] { --tp-state: var(--tp-carton); }
+.machine-front[data-machine-state="rejected"] { --tp-state: #ff8b83; }
+
+/* Tabliczka z nazwą automatu i kontrolką stanu */
+.machine-plate {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: var(--tp-surface-low);
+  border: 2px solid var(--tp-ink);
+  border-radius: 4px;
+  box-shadow: var(--tp-shadow-2);
+  font-family: var(--tp-mono);
+}
+.machine-name { font-weight: 700; letter-spacing: 0.08em; color: var(--tp-ink); }
+.machine-led {
+  position: relative;
+  padding: 2px 10px 2px 28px;
+  background: var(--tp-panel);
+  border: 2px solid var(--tp-ink);
+  border-radius: 3px;
+  color: var(--tp-led);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.machine-led::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 50%;
+  width: 11px;
+  height: 11px;
+  margin-top: -6px;
+  border: 2px solid var(--tp-ink);
+  border-radius: 50%;
+  background: var(--tp-state);
+}
+.machine-front[data-machine-state="scanning"] .machine-led::before { animation: tp-blink 0.8s ease-in-out infinite; }
+
+.machine-body { display: grid; grid-template-columns: minmax(150px, 190px) minmax(0, 1fr); gap: 14px; align-items: stretch; }
+.dropzone-title { margin: 12px 0 0; color: var(--tp-white); font-size: 0.84rem; font-weight: 600; }
+
+/* Okrągły wlot: ciemny otwór w pierścieniu koloru stanu */
+.deposit-dropzone {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  align-self: center;
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 14px;
+  overflow: hidden;
+  background: radial-gradient(circle, #05080f 45%, #1a2538 100%);
+  border: 4px solid var(--tp-ink);
+  border-radius: 50%;
+  box-shadow: 0 0 0 6px var(--tp-state), 0 0 0 8px var(--tp-ink), var(--tp-shadow-4);
+  transition: box-shadow var(--tp-dur) var(--tp-ease);
+}
+.deposit-dropzone.is-drop-target,
+.deposit-dropzone.is-dragover { box-shadow: 0 0 0 10px var(--tp-led-soft), 0 0 0 12px var(--tp-ink), var(--tp-shadow-4); transform: none; }
+.dropzone-badge {
+  max-width: 82%;
+  padding: 3px 7px;
+  background: var(--tp-carton);
+  border: 2px solid var(--tp-ink);
+  border-radius: 3px;
+  color: var(--tp-carton-ink);
+  font-family: var(--tp-mono);
+  font-size: 0.62rem;
+  line-height: 1.25;
+}
+.dropzone-arrow { color: var(--tp-led); font-family: var(--tp-mono); font-size: 0.66rem; font-weight: 700; letter-spacing: 0.06em; text-align: center; }
+.dropzone-arrow::before { content: "▼"; display: block; margin-bottom: 2px; font-size: 1rem; }
+.machine-front[data-machine-state="scanning"] .deposit-dropzone::after {
+  content: "";
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  top: 15%;
+  height: 3px;
+  background: #ffb347;
+  box-shadow: 0 0 0 1px var(--tp-ink);
+  animation: tp-scan 0.9s ease-in-out infinite alternate;
+}
+
+/* LCD skanera: ciemny panel z tekstem LED i kolorem stanu */
+.scanner-result-box {
+  padding: 12px 14px;
+  background: var(--tp-panel);
+  border: 2px solid var(--tp-ink);
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 3px #0f1827;
+  color: var(--tp-led);
+  font-family: var(--tp-mono);
+  text-align: left;
+}
+.scanner-result-box.is-redirected { color: var(--tp-carton); }
+.scanner-result-box.is-rejected { color: #ffb4ab; }
+.scanner-status-title { display: block; margin-bottom: 4px; font-size: 0.92rem; letter-spacing: 0.03em; }
+.scanner-message { margin: 0 0 8px; font-size: 0.8rem; color: inherit; opacity: 0.92; }
+.scanner-lcd { margin: 0 0 8px; }
+.scanner-lcd > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2px 10px;
+  padding: 4px 0;
+  border-top: 1px dashed rgba(159, 176, 204, 0.45);
+  font-size: 0.76rem;
+}
+.scanner-lcd dt { color: #b6c3dc; }
+.scanner-lcd dd { margin: 0; min-width: 0; overflow-wrap: anywhere; text-align: right; font-weight: 700; }
+.scanner-meta { color: #b6c3dc; font-family: var(--tp-mono); font-size: 0.7rem; word-break: break-word; }
+
+@keyframes tp-blink { 50% { opacity: 0.25; } }
+@keyframes tp-scan { to { top: 82%; } }
+
+@media (max-width: 560px) {
+  .machine-body { grid-template-columns: 1fr; }
+  .deposit-dropzone { max-width: 200px; margin: 0 auto; }
+}

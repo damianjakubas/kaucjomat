@@ -69,3 +69,67 @@ test("Klasa rozmiaru wynika z pojemności 500, 1500 i 5000 ml", () => {
   assert.equal(art.resolvePackageArt(card({ volume_ml: 1500 })).sizeClass, "is-medium");
   assert.equal(art.resolvePackageArt(card({ volume_ml: 5000 })).sizeClass, "is-large");
 });
+
+/** Ładuje moduł efektów z atrapą DOM zawierającą front automatu i kontrolkę stanu. */
+function loadFx() {
+  const front = { dataset: {} };
+  const led = { textContent: "" };
+  const document = {
+    querySelector: (selector) => (selector === ".machine-front" ? front : null),
+    getElementById: (id) => (id === "machine-led" ? led : null),
+  };
+  const sandbox = createContext({ window: {}, document });
+  runInContext(readFileSync(join(staticDir, "return_machine_fx.js"), "utf8"), sandbox);
+  return { fx: sandbox.window.KaucjomatReturnFx, front, led };
+}
+
+test("Moduł efektów ładuje się w vm bez DOM i eksportuje API", () => {
+  const sandbox = createContext({ window: {} });
+  runInContext(readFileSync(join(staticDir, "return_machine_fx.js"), "utf8"), sandbox);
+  const fx = sandbox.window.KaucjomatReturnFx;
+  for (const name of ["setMachineState", "clearScanning", "markPendingAttempt", "isFreshAttempt", "roundTripFor", "playVoucherIssue"]) {
+    assert.equal(typeof fx[name], "function", name);
+  }
+});
+
+test("Stan maszyny ustawia atrybut frontu i napis kontrolki", () => {
+  const { fx, front, led } = loadFx();
+  const expected = { idle: "GOTOWY", scanning: "SKANOWANIE", accepted: "PRZYJĘTO", redirected: "DO KASY", rejected: "ODRZUCONO" };
+  for (const [state, label] of Object.entries(expected)) {
+    fx.setMachineState(state);
+    assert.equal(front.dataset.machineState, state);
+    assert.equal(led.textContent, label);
+  }
+  fx.setMachineState("nieznany");
+  assert.equal(front.dataset.machineState, "idle");
+});
+
+test("clearScanning zdejmuje tylko skanowanie i nie psuje decyzji", () => {
+  const { fx, front } = loadFx();
+  fx.setMachineState("scanning");
+  fx.clearScanning();
+  assert.equal(front.dataset.machineState, "idle");
+  fx.setMachineState("rejected");
+  fx.clearScanning();
+  assert.equal(front.dataset.machineState, "rejected");
+});
+
+test("Świeża próba wygasa po 1,5 s i dotyczy tylko oznaczonego numeru", () => {
+  const { fx } = loadFx();
+  assert.equal(fx.isFreshAttempt(1, 1000), false);
+  fx.markPendingAttempt(3, 41.5, 1000);
+  assert.equal(fx.isFreshAttempt(3, 1000), true);
+  assert.equal(fx.isFreshAttempt(3, 2499), true);
+  assert.equal(fx.isFreshAttempt(3, 2500), false);
+  assert.equal(fx.isFreshAttempt(2, 1200), false);
+});
+
+test("Czas HTTP+DOM jest pamiętany dla ostatniej próby, a bez pomiaru wynosi null", () => {
+  const { fx } = loadFx();
+  assert.equal(fx.roundTripFor(1), null);
+  fx.markPendingAttempt(2, 37.25, 0);
+  assert.equal(fx.roundTripFor(2), 37.25);
+  assert.equal(fx.roundTripFor(1), null);
+  fx.markPendingAttempt(3, null, 0);
+  assert.equal(fx.roundTripFor(3), null);
+});

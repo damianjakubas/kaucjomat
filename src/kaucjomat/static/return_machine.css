@@ -16,90 +16,15 @@
 .metric-label { font-size: 0.75rem; color: var(--text-muted); }
 .metric-value { font-size: 1.05rem; color: var(--text-main); }
 
-/* Dwukolumnowy układ stanowiska: lewo = wlot i historia, prawo = półka kart */
+/* Układ stanowiska: lewo = front automatu, szczelina i dziennik, prawo = półka kart (wygląd w tactile_*.css) */
 .return-station-grid {
   display: grid;
-  grid-template-columns: 1.05fr 1fr;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
   gap: 16px;
   align-items: start;
 }
 .return-column-left { display: flex; flex-direction: column; gap: 14px; }
-
-.deposit-dropzone {
-  padding: 18px;
-  border: 2px dashed var(--accent-primary);
-  border-radius: var(--radius-md);
-  background: linear-gradient(180deg, var(--bg-subtle) 0%, var(--bg-page) 100%);
-  text-align: center;
-  transition: border-color 120ms ease, background-color 120ms ease, transform 120ms ease;
-}
-.deposit-dropzone.is-dragover {
-  border-color: var(--accent-strong);
-  background: var(--demo-bg);
-  transform: scale(1.01);
-}
-.dropzone-badge {
-  display: inline-block;
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: var(--accent-primary);
-  color: #ffffff;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-}
-.dropzone-title { margin: 10px 0 14px; font-weight: 600; font-size: 0.94rem; color: var(--text-main); }
-
-.scanner-result-box {
-  text-align: left;
-  padding: 12px 14px;
-  border-radius: 10px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-soft);
-}
-.scanner-result-box.is-accepted { background: #ecfdf5; border-color: #10b981; color: #065f46; }
-.scanner-result-box.is-redirected { background: var(--demo-bg); border-color: var(--demo-border); color: var(--demo-text); }
-.scanner-result-box.is-rejected { background: var(--error-bg); border-color: var(--error-border); color: var(--error-text); }
-.scanner-status-title { display: block; font-size: 0.96rem; margin-bottom: 4px; }
-.scanner-message { margin: 0 0 8px; font-size: 0.88rem; }
-.scanner-meta {
-  font-size: 0.78rem;
-  color: var(--text-muted);
-  font-family: Consolas, "Courier New", monospace;
-  word-break: break-word;
-}
-
-.session-history-box,
-.return-column-right {
-  padding: 14px;
-  border-radius: 10px;
-  background: var(--bg-page);
-  border: 1px solid var(--border-soft);
-}
-.session-history-box h3,
-.return-column-right h3 { margin: 0 0 10px; font-size: 0.98rem; }
-
-.session-attempts-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 250px;
-  overflow-y: auto;
-}
-.attempt-item,
-.attempt-empty {
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-soft);
-  font-size: 0.82rem;
-}
-.attempt-item.is-accepted { border-left: 4px solid #10b981; }
-.attempt-item.is-redirected { border-left: 4px solid var(--demo-border); }
-.attempt-item.is-rejected { border-left: 4px solid var(--error-border); }
+.deposit-dropzone { text-align: center; }
 .voucher-next-step,
 .panel-scope-note { margin: 10px 0 0; font-size: 0.8rem; color: var(--text-muted); }
 

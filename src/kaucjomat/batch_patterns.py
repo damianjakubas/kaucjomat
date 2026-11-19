@@ -12,7 +12,7 @@ from typing import Final
 from kaucjomat.exceptions import BatchLogAnalysisError, InvalidConfigurationError
 from kaucjomat.return_patterns import parse_package_code
 
-# Prekompilowany wzorzec pojedynczej linii logu zwrotu z grupami nazwanymi (KZ-05).
+# Prekompilowany wzorzec pojedynczej linii logu zwrotu z grupami nazwanymi.
 BATCH_LOG_LINE_RE: Final[re.Pattern[str]] = re.compile(
     r"""
     ^

@@ -1,4 +1,4 @@
-"""Własne dekoratory funkcji do audytu i kontroli budżetu czasu skanera (KZ-01, KZ-18)."""
+"""Własne dekoratory funkcji do audytu i kontroli budżetu czasu skanera."""
 
 from __future__ import annotations
 

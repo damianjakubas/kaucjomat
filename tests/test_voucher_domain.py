@@ -91,7 +91,7 @@ def test_resolve_voucher_status_boundary_and_redeemed_priority() -> None:
 
 
 def test_create_expired_test_voucher_matches_kz13_seed_contract() -> None:
-    """Sprawdza deterministyczny testowy bon wygasły (KZ-13) z wyraźnym oznaczeniem DEMO."""
+    """Sprawdza deterministyczny testowy bon wygasły z wyraźnym oznaczeniem DEMO."""
     seed_voucher = create_expired_test_voucher()
     issued_at = datetime.fromisoformat(seed_voucher.issued_at_iso)
     expires_at = datetime.fromisoformat(seed_voucher.expires_at_iso)

@@ -1,4 +1,4 @@
-"""Katalog 8 predefiniowanych kart testowych DEMO dla półki butelkomatu (KZ-13)."""
+"""Katalog 8 predefiniowanych kart testowych DEMO dla półki butelkomatu."""
 
 from __future__ import annotations
 

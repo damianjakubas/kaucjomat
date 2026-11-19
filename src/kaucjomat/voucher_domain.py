@@ -155,7 +155,7 @@ def create_issued_voucher(
 
 
 def create_expired_test_voucher() -> VoucherRecord:
-    """Zwraca predefiniowany testowy bon wygasły DEMO (KZ-13) gotowy do demonstracji w kasie."""
+    """Zwraca predefiniowany testowy bon wygasły DEMO gotowy do demonstracji w kasie."""
     # Stałe daty historyczne (100 dni odstępu) zapewniają status WYGASŁY bez czekania na obronie.
     return VoucherRecord(
         voucher_code=EXPIRED_TEST_VOUCHER_CODE,

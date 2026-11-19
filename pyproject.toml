@@ -1,7 +1,7 @@
 [project]
 name = "kaucjomat"
 version = "0.1.0"
-description = "Add your description here"
+description = "Interaktywny symulator polskiego systemu kaucyjnego (TRYB DEMO) z analizą wsadową i benchmarkiem GIL."
 readme = "README.md"
 authors = [
     { name = "damianjakubas", email = "damianjakubas98@gmail.com" }

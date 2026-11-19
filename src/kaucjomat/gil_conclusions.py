@@ -21,7 +21,8 @@ def _threads_conclusion(
             tail = (
                 "jednak przy aktywnym GIL nie oznacza to równoległego wykonywania "
                 "kodu bajtowego Pythona — zysk może wynikać z operacji zwalniających GIL "
-                "(I/O lub kod natywny) albo wahań krótkiego pomiaru."
+                "(I/O lub kod natywny), wahań krótkiego pomiaru albo zmienności systemu "
+                "(taktowanie, planista)."
             )
         else:
             tail = "co wskazuje na równoległe wykonanie kodu bajtowego (build free-threading)."
@@ -32,12 +33,17 @@ def _threads_conclusion(
     return f"{head}, {tail}"
 
 
-def _processes_conclusion(proc: BenchmarkStrategyResult, seq: BenchmarkStrategyResult) -> str:
-    """Opisuje wynik procesów spawn zależnie od zmierzonego przyspieszenia."""
+def _processes_conclusion(
+    env: GilEnvironmentInfo, proc: BenchmarkStrategyResult, seq: BenchmarkStrategyResult,
+) -> str:
+    """Opisuje wynik procesów spawn zależnie od zmierzonego przyspieszenia i stanu GIL."""
     head = (f"Procesy spawn ({proc.workers} pracowników) osiągnęły medianę {proc.median_ms:.1f} ms "
             f"({proc.speedup_vs_sequential:.2f}x względem przebiegu sekwencyjnego)")
     if proc.speedup_vs_sequential >= _SPEEDUP_THRESHOLD:
-        return f"{head}, omijając GIL dzięki niezależnym interpreterom."
+        if env.gil_enabled:
+            return f"{head}, omijając GIL dzięki niezależnym interpreterom."
+        # Build free-threading: GIL nie istnieje, więc zysk wynika z osobnych procesów.
+        return f"{head}, dzięki niezależnym procesom (osobna pamięć i interpreter)."
     return f"{head} — bez wyraźnego zysku: narzut startu spawn i IPC lub zbyt mało rdzeni CPU."
 
 
@@ -48,8 +54,8 @@ def build_single_core_warning(cpu_count: int) -> str | None:
     return (
         "Wykryto środowisko jednordzeniowe (cpu_count=1): pula procesów spawn nie ma "
         "dodatkowych rdzeni CPU, więc narzut startu procesów i IPC może ją spowolnić. "
-        "Przyspieszenie procesów powyżej 1,0x wymaga wielu rdzeni, a wątki nie pomogą "
-        "z powodu blokady GIL."
+        "Przyspieszenie procesów powyżej 1,0x wymaga wielu rdzeni, a wątki nie dadzą "
+        "przyspieszenia przy jednym rdzeniu (niezależnie od stanu GIL)."
     )
 
 
@@ -66,7 +72,7 @@ def build_conclusions(
         f"Środowisko: {env.implementation} {env.python_version}, wykryte rdzenie CPU={env.cpu_count}, "
         f"GIL={gil_state} (interwał przełączania {env.switch_interval_s:.4f} s).",
         _threads_conclusion(env, thr, seq),
-        _processes_conclusion(proc, seq),
+        _processes_conclusion(env, proc, seq),
     ]
     if single_core_warning is not None:
         conclusions.append(single_core_warning)

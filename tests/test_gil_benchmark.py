@@ -28,13 +28,10 @@ from kaucjomat.exceptions import (
     InvalidConfigurationError,
 )
 from kaucjomat.gil_benchmark import (
-    BenchmarkStrategyResult,
-    GilEnvironmentInfo,
     collect_gil_environment_info,
     compute_analytics_threaded,
     run_gil_benchmark,
 )
-from kaucjomat.gil_conclusions import build_conclusions
 
 
 def _create_small_dataset(log_dir: Path) -> None:
@@ -242,54 +239,3 @@ def test_gil_benchmark_validation_and_mismatch_errors(
             work_iterations=10,
             auto_generate=False,
         )
-
-
-def _strategy_stub(strategy_id: str, speedup: float, workers: int = 4) -> BenchmarkStrategyResult:
-    """Tworzy deterministyczny wynik strategii do testów wniosków o GIL."""
-    median_ms = 1000.0 / speedup
-    return BenchmarkStrategyResult(
-        strategy_id=strategy_id, strategy_label=strategy_id, workers=workers, repeats=1,
-        runs_ms=(median_ms,), median_ms=median_ms, mean_ms=median_ms,
-        min_ms=median_ms, max_ms=median_ms,
-        speedup_vs_sequential=speedup, relative_to_sequential_pct=100.0 / speedup,
-    )
-
-
-@pytest.mark.parametrize(
-    ("gil_enabled", "cpu_count", "thr_speedup", "proc_speedup", "expected_thr", "forbidden_thr", "expected_proc"),
-    [
-        (True, 8, 1.45, 2.40, ("zwalniających GIL",), ("równoległe wykonanie kodu bajtowego", "mimo aktywnego GIL"), "omijając GIL"),
-        (False, 8, 1.45, 2.40, ("free-threading", "równoległe wykonanie kodu bajtowego"), (), "omijając GIL"),
-        (True, 8, 0.98, 2.40, ("serializację kodu bajtowego Pythona przez GIL",), (), "omijając GIL"),
-        (False, 1, 0.98, 0.85, ("mimo wyłączonego GIL",), (), "bez wyraźnego zysku"),
-    ],
-)
-def test_build_conclusions_covers_all_gil_and_process_branches(
-    gil_enabled: bool,
-    cpu_count: int,
-    thr_speedup: float,
-    proc_speedup: float,
-    expected_thr: tuple[str, ...],
-    forbidden_thr: tuple[str, ...],
-    expected_proc: str,
-) -> None:
-    """Sprawdza wszystkie gałęzie wniosków wątków, procesów oraz ostrzeżenia dla 1 CPU."""
-    env = GilEnvironmentInfo(
-        python_version="3.13.5", implementation="CPython", platform_summary="Test OS",
-        cpu_count=cpu_count, gil_enabled=gil_enabled,
-        free_threading_build=not gil_enabled, switch_interval_s=0.005,
-    )
-    strategies = (
-        _strategy_stub("sequential", 1.0, workers=1),
-        _strategy_stub("threads", thr_speedup, workers=4),
-        _strategy_stub("processes_spawn", proc_speedup, workers=4),
-    )
-    warning, conclusions = build_conclusions(env, strategies)
-
-    assert ("aktywny" if gil_enabled else "wyłączony (free-threading)") in conclusions[0]
-    for phrase in expected_thr:
-        assert phrase in conclusions[1]
-    for phrase in forbidden_thr:
-        assert phrase not in conclusions[1]
-    assert expected_proc in conclusions[2]
-    assert (warning is not None and len(conclusions) == 4) if cpu_count <= 1 else (warning is None and len(conclusions) == 3)

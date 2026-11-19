@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200" role="img" width="100" height="200">
+  <title>Butelka szklana zwrotna 0,5 l</title>
+  <rect x="42" y="6" width="16" height="10" rx="2" fill="#ffd6a3" stroke="#111c2d" stroke-width="2"/>
+  <path d="M43 16 H57 V70 C57 82 76 88 76 106 V178 Q76 191 64 191 H36 Q24 191 24 178 V106 C24 88 43 82 43 70 Z" fill="#8a5a2b" stroke="#111c2d" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M31 112 V176" stroke="#d9a066" stroke-width="4" stroke-linecap="round" opacity="0.8"/>
+  <rect x="24" y="118" width="52" height="46" fill="#ffddb4" stroke="#111c2d" stroke-width="2"/>
+  <rect x="38" y="130" width="24" height="22" rx="2" fill="#ffffff" stroke="#111c2d" stroke-width="2"/>
+  <path d="M43 141 H57" stroke="#775930" stroke-width="3" stroke-linecap="round"/>
+</svg>

@@ -92,7 +92,9 @@ async function loadReturnSession() {
     // Najnowsza próba z historii znajduje się pod indeksem 0 (posortowane malejąco od ostatniej).
     if (Array.isArray(session.attempts) && session.attempts.length > 0) {
       const latest = session.attempts[0];
-      window.KaucjomatReturnView.renderScannerDecision(latest, Number(latest.elapsed_ms || 0));
+      // Czas HTTP+DOM pochodzi z pomiaru klienta; po F5 go nie ma i LCD pokazuje kreskę.
+      const fx = window.KaucjomatReturnFx;
+      window.KaucjomatReturnView.renderScannerDecision(latest, fx ? fx.roundTripFor(latest.attempt_no) : null);
     }
     else window.KaucjomatReturnView.resetScannerBoxView();
     reportReturnsError("", "returnsSession");
@@ -112,6 +114,8 @@ async function loadReturnSession() {
  */
 async function submitPackageDeposit(cardId) {
   if (!window.KaucjomatReturnView || !returnDemo.begin("deposit")) return;
+  const fx = window.KaucjomatReturnFx;
+  if (fx) fx.setMachineState("scanning");
   setMachineControlsBusy(true);
   const startTime = performance.now();
   try {
@@ -121,7 +125,10 @@ async function submitPackageDeposit(cardId) {
       body: JSON.stringify({ card_id: cardId }),
     });
     if (!payload.decision || !payload.session) throw new Error("Brak decyzji skanera.");
-    window.KaucjomatReturnView.renderScannerDecision(payload.decision, performance.now() - startTime);
+    const roundTripMs = performance.now() - startTime;
+    const newest = Array.isArray(payload.session.attempts) ? payload.session.attempts[0] : null;
+    if (fx && newest) fx.markPendingAttempt(newest.attempt_no, roundTripMs);
+    window.KaucjomatReturnView.renderScannerDecision(payload.decision, roundTripMs);
     window.KaucjomatReturnView.renderSessionState(payload.session);
     reportReturnsError("", "returnsAction");
   } catch (error) {
@@ -130,6 +137,7 @@ async function submitPackageDeposit(cardId) {
       "returnsAction",
     );
   } finally {
+    if (fx) fx.clearScanning();
     returnDemo.end("deposit");
     setMachineControlsBusy(false);
   }
@@ -176,6 +184,7 @@ async function issueSessionVoucher() {
     if (!payload.voucher || !payload.session) throw new Error("Brak danych bonu w odpowiedzi API.");
     window.KaucjomatReturnView.renderSessionState(payload.session);
     window.KaucjomatReturnView.renderIssuedVoucher(payload.voucher);
+    if (window.KaucjomatReturnFx) window.KaucjomatReturnFx.playVoucherIssue();
     window.KaucjomatReturnView.resetScannerBoxView(
       `WYSTAWIONO BON DEMO (${payload.voucher.voucher_code})`,
       `Wystawiono bon na kwotę ${payload.voucher.amount_formatted}. Rozpoczęto nową pustą sesję zwrotu z zachowaniem rejestru ID.`,
@@ -223,7 +232,7 @@ async function resetReturnDemoState() {
 }
 
 /**
- * Inicjalizuje strefę Drag & Drop wlotu butelkomatu, przyciski bonu/druku/resetu oraz startowe ładowanie danych.
+ * Podpina przeciąganie kart do wlotu butelkomatu, przyciski bonu/druku/resetu oraz startowe ładowanie danych.
  * @returns {void}
  */
 function initReturnMachine() {
@@ -233,18 +242,11 @@ function initReturnMachine() {
   const printBtn = document.getElementById("print-voucher-btn");
   if (!dropzone) return;
 
-  dropzone.addEventListener("dragover", (event) => {
-    event.preventDefault();
-    if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
-    dropzone.classList.add("is-dragover");
-  });
-  dropzone.addEventListener("dragleave", () => dropzone.classList.remove("is-dragover"));
-  dropzone.addEventListener("drop", (event) => {
-    event.preventDefault();
-    dropzone.classList.remove("is-dragover");
-    const cardId = event.dataTransfer ? event.dataTransfer.getData("text/plain").trim() : "";
-    if (cardId) void submitPackageDeposit(cardId);
-  });
+  const shelf = document.getElementById("package-cards-shelf");
+  // Przeciąganie (mysz i dotyk) to tylko inna droga do tej samej funkcji co przycisk „Wrzuć”.
+  if (shelf && window.KaucjomatReturnDrag) {
+    window.KaucjomatReturnDrag.attachShelfDrag(shelf, dropzone, (cardId) => { void submitPackageDeposit(cardId); });
+  }
   if (issueBtn) issueBtn.addEventListener("click", () => { void issueSessionVoucher(); });
   if (printBtn) printBtn.addEventListener("click", () => { window.print(); });
   if (resetBtn) resetBtn.addEventListener("click", () => { void resetReturnDemoState(); });

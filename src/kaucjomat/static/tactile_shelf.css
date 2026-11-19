@@ -1,0 +1,128 @@
+/* Półka 8 opakowań w stylu Tactile Papercraft: karty-wycinanki z ilustracjami SVG */
+.return-column-right {
+  padding: 14px;
+  background: #fcf4ee;
+  border: 2px solid var(--tp-ink);
+  border-radius: 8px;
+  box-shadow: var(--tp-shadow-4);
+}
+.return-column-right h3 { font-family: var(--tp-mono); text-transform: uppercase; letter-spacing: 0.04em; color: var(--tp-ink); }
+
+.package-cards-shelf { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+
+.package-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 10px;
+  gap: 8px;
+  background: var(--tp-white);
+  border: 2px solid var(--tp-ink);
+  border-radius: 6px;
+  box-shadow: var(--tp-shadow-3);
+  transition: transform var(--tp-dur) var(--tp-ease), box-shadow var(--tp-dur) var(--tp-ease);
+}
+.package-card:hover { border-color: var(--tp-ink); box-shadow: var(--tp-shadow-4); transform: translate(-1px, -1px); }
+
+.package-card-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px; font-family: var(--tp-mono); }
+.package-card-head small { font-size: 0.68rem; color: var(--tp-ink); }
+.package-card-badge {
+  padding: 2px 7px;
+  font-weight: 700;
+  background: var(--tp-emerald-deep);
+  border: 2px solid var(--tp-ink);
+  border-radius: 3px;
+  color: var(--tp-white);
+  font-size: 0.68rem;
+}
+.package-card-group-glass .package-card-badge { background: var(--tp-carton); color: var(--tp-carton-ink); }
+.package-card-group-invalid .package-card-badge { background: var(--tp-error-soft); color: var(--tp-error); }
+
+/* Ramka z ilustracją: wysokość figury jest stała, a skala wynika z pojemności opakowania */
+.package-card-art {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 140px;
+  margin: 0;
+  padding: 8px;
+  background: var(--tp-surface-low);
+  border: 2px dashed var(--tp-ink);
+  border-radius: 4px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.package-card-img {
+  width: auto;
+  max-width: 100%;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+.package-card-art.is-small .package-card-img { height: 76%; }
+.package-card-art.is-medium .package-card-img { height: 90%; }
+.package-card-art.is-large .package-card-img { height: 100%; }
+
+.package-card-title { margin: 0; font-size: 0.95rem; line-height: 1.25; color: var(--tp-ink); }
+.package-card-subtitle,
+.package-card-code { margin: 0; color: var(--tp-ink); font-family: var(--tp-mono); font-size: 0.7rem; overflow-wrap: anywhere; }
+.package-card-code { opacity: 0.7; }
+
+.btn-deposit-card {
+  appearance: none;
+  padding: 8px 10px;
+  font-size: 0.84rem;
+  cursor: pointer;
+  background: var(--tp-emerald-deep);
+  border: 2px solid var(--tp-ink);
+  border-radius: 4px;
+  box-shadow: var(--tp-shadow-2);
+  color: var(--tp-white);
+  font-weight: 700;
+  transition: transform var(--tp-dur) var(--tp-ease), box-shadow var(--tp-dur) var(--tp-ease), background-color var(--tp-dur) var(--tp-ease);
+}
+.btn-deposit-card:hover { background: var(--tp-emerald); }
+.btn-deposit-card:active { transform: translate(2px, 2px); box-shadow: none; }
+.package-card-group-glass .btn-deposit-card { background: var(--tp-carton); color: var(--tp-carton-ink); }
+.package-card-group-glass .btn-deposit-card:hover { background: var(--tp-carton-soft); }
+.package-card-group-invalid .btn-deposit-card { background: #dbe4ff; color: var(--tp-ink); }
+.package-card-group-invalid .btn-deposit-card:hover { background: #c9d6ff; }
+
+/* Przeciąganie do wlotu (Pointer Events): chwyt tylko w układzie dwukolumnowym, poniżej strona przewija się normalnie */
+.hint-tap { display: none; }
+@media (min-width: 821px) {
+  .package-card-art { touch-action: none; cursor: grab; }
+}
+.package-card.is-dragging { opacity: 0.45; }
+.package-card.is-dragging .package-card-art { cursor: grabbing; }
+.package-drag-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: var(--tp-z-drag);
+  background: var(--tp-white);
+  box-shadow: var(--tp-shadow-4);
+  cursor: grabbing;
+  pointer-events: none;
+  will-change: transform;
+}
+.package-drag-ghost.is-dropping { animation: tp-drop var(--drag-ms, 350ms) var(--tp-ease) 1 forwards; }
+.package-drag-ghost.is-returning { animation: tp-return var(--drag-ms, 260ms) var(--tp-ease) 1 forwards; }
+@keyframes tp-drop {
+  from { transform: translate(var(--drag-from-x), var(--drag-from-y)) rotate(4deg) scale(1); opacity: 1; }
+  to { transform: translate(var(--drag-to-x), var(--drag-to-y)) rotate(0deg) scale(0.15); opacity: 0; }
+}
+@keyframes tp-return {
+  from { transform: translate(var(--drag-from-x), var(--drag-from-y)) rotate(4deg); }
+  to { transform: translate(var(--drag-to-x), var(--drag-to-y)) rotate(0deg); }
+}
+
+@media (max-width: 820px) {
+  .hint-drag { display: none; }
+  .hint-tap { display: inline; }
+}
+@media (max-width: 480px) {
+  .package-cards-shelf { grid-template-columns: 1fr; }
+}

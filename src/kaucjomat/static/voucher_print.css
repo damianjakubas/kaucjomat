@@ -1,33 +1,6 @@
 /* Arkusz stylów karty bonu kaucyjnego DEMO oraz wydruku / zapisu do PDF (@media print) */
 .summary-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 
-.btn-issue-voucher {
-  appearance: none;
-  border: 1px solid var(--accent-strong);
-  background: var(--accent-primary);
-  color: #ffffff;
-  padding: 8px 14px;
-  border-radius: 8px;
-  font-weight: 700;
-  font-size: 0.88rem;
-  cursor: pointer;
-}
-.btn-issue-voucher:hover:not(:disabled) { background: var(--accent-strong); }
-.btn-issue-voucher:disabled {
-  background: #cbd8d0;
-  border-color: #b4c4ba;
-  color: #4b6154;
-  cursor: not-allowed;
-  opacity: 0.75;
-}
-
-.issued-voucher-card {
-  padding: 16px;
-  border-radius: 10px;
-  background: var(--bg-card);
-  border: 2px solid var(--accent-primary);
-  box-shadow: 0 4px 14px rgba(15, 118, 110, 0.12);
-}
 .voucher-card-header {
   display: flex;
   flex-wrap: wrap;
@@ -80,18 +53,6 @@
 .voucher-amount-strong { font-size: 1.06rem; font-weight: 700; color: var(--accent-strong); }
 
 .voucher-card-actions { display: flex; justify-content: flex-end; margin-bottom: 8px; }
-.btn-print-voucher {
-  appearance: none;
-  border: 1px solid var(--accent-strong);
-  background: var(--bg-subtle);
-  color: var(--accent-strong);
-  padding: 7px 13px;
-  border-radius: 8px;
-  font-weight: 700;
-  font-size: 0.84rem;
-  cursor: pointer;
-}
-.btn-print-voucher:hover { background: #d7e7dd; }
 .voucher-seed-note { margin: 0; font-size: 0.78rem; color: var(--text-muted); }
 
 /* Izolacja pojedynczej karty bonu DEMO na czystej stronie wydruku / PDF */
@@ -116,7 +77,10 @@
   #view-butelkomat > .panel-description,
   .session-summary-bar,
   .return-column-right,
+  .machine-front,
   #deposit-dropzone,
+  #scanner-result-box,
+  .printer-slot-bar,
   .session-history-box,
   .app-footer,
   #print-voucher-btn,
@@ -138,15 +102,30 @@
 
   .return-station-grid { display: block !important; }
 
+  /* Szczelina i bon bez ruchu, cieni i ząbków, żeby wydruk mieścił się na jednej stronie A4 */
+  .printer-slot {
+    overflow: visible !important;
+    padding: 0 !important;
+    background: none !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
   #issued-voucher-card:not([hidden]) {
     display: block !important;
     width: 100% !important;
     max-width: 170mm;
     margin: 0 auto;
     padding: 18px;
-    border: 2px solid #13221a;
-    box-shadow: none;
+    border: 2px solid #13221a !important;
+    border-radius: 0;
+    background: #ffffff !important;
+    box-shadow: none !important;
+    transform: none !important;
+    animation: none !important;
   }
+  #issued-voucher-card::before,
+  #issued-voucher-card::after { display: none !important; }
   #issued-voucher-card[hidden] { display: none !important; }
 
   .voucher-print-banner {

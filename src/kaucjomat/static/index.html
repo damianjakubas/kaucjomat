@@ -7,9 +7,13 @@
   <!-- Lokalne style powłoki bez zewnętrznych CDN (praca w pełni offline) -->
   <link rel="stylesheet" href="/static/styles.css">
   <link rel="stylesheet" href="/static/return_machine.css">
-  <link rel="stylesheet" href="/static/voucher_print.css">
   <link rel="stylesheet" href="/static/checkout.css">
   <link rel="stylesheet" href="/static/analytics.css">
+  <link rel="stylesheet" href="/static/tactile_shell.css">
+  <link rel="stylesheet" href="/static/tactile_machine.css">
+  <link rel="stylesheet" href="/static/tactile_voucher.css">
+  <link rel="stylesheet" href="/static/tactile_shelf.css">
+  <link rel="stylesheet" href="/static/voucher_print.css">
 </head>
 <body>
   <div class="app-shell">
@@ -91,22 +95,32 @@
           </div>
         </div>
 
-        <!-- Stanowisko butelkomatu: po lewej wlot + ekran skanera + bon + historia, po prawej półka kart -->
+        <!-- Stanowisko butelkomatu: po lewej front automatu (wlot + LCD), szczelina z bonem i historia; po prawej półka kart -->
         <div class="return-station-grid">
           <div class="return-column-left">
-            <div id="deposit-dropzone" class="deposit-dropzone" role="region" aria-label="Wlot butelkomatu DEMO — upuść kartę opakowania">
-              <span class="dropzone-badge">WLOT AUTOMATU DEMO</span>
-              <p class="dropzone-title">Przeciągnij kartę opakowania tutaj lub kliknij „Wrzuć do automatu”</p>
-              <div id="scanner-result-box" class="scanner-result-box" aria-live="polite">
-                <strong class="scanner-status-title" id="scanner-status-title">GOTOWY DO SKANU (DEMO)</strong>
-                <p class="scanner-message" id="scanner-status-message">
-                  Wybierz opakowanie z półki testowej po prawej stronie, aby sprawdzić reguły systemu kaucyjnego.
-                </p>
-                <div class="scanner-meta" id="scanner-status-meta">Oczekiwanie na pierwszą próbę zwrotu.</div>
+            <div class="machine-front" data-machine-state="idle">
+              <div class="machine-plate"><span class="machine-name">BUTELKOMAT DEMO</span><span class="machine-led" id="machine-led" role="status">GOTOWY</span></div>
+              <div class="machine-body">
+                <div id="deposit-dropzone" class="deposit-dropzone" role="region" aria-label="Wlot butelkomatu DEMO — przeciągnij tu opakowanie z półki">
+                  <span class="dropzone-badge">WLOT AUTOMATU DEMO</span><span class="dropzone-arrow">DNEM W PRZÓD</span>
+                </div>
+                <div id="scanner-result-box" class="scanner-result-box" aria-live="polite">
+                  <strong class="scanner-status-title" id="scanner-status-title">GOTOWY DO SKANU (DEMO)</strong>
+                  <p class="scanner-message" id="scanner-status-message">Wybierz opakowanie z półki testowej, aby sprawdzić reguły systemu kaucyjnego.</p>
+                  <dl class="scanner-lcd">
+                    <div><dt>Opakowanie</dt><dd id="scanner-package-value">—</dd></div>
+                    <div><dt>EAN</dt><dd id="scanner-ean-value">—</dd></div>
+                    <div><dt>ID egzemplarza</dt><dd id="scanner-instance-value">—</dd></div>
+                    <div><dt>Skaner / HTTP+DOM</dt><dd id="scanner-timing-value">—</dd></div>
+                  </dl>
+                  <div class="scanner-meta" id="scanner-status-meta">Oczekiwanie na pierwszą próbę zwrotu.</div>
+                </div>
               </div>
+              <p class="dropzone-title"><span class="hint-drag">Przeciągnij opakowanie do wlotu lub kliknij</span><span class="hint-tap">Kliknij</span> „Wrzuć do automatu”</p>
             </div>
-
-            <!-- Karta ostatnio wystawionego bonu kaucyjnego DEMO (przystosowana również do @media print) -->
+            <!-- Szczelina wydruku z ostatnio wystawionym bonem DEMO (karta przystosowana również do @media print) -->
+            <div class="printer-slot">
+            <div class="printer-slot-bar" aria-hidden="true">SZCZELINA WYDRUKU BONU DEMO</div>
             <section id="issued-voucher-card" class="issued-voucher-card" aria-live="polite" hidden>
               <div class="voucher-card-header">
                 <span class="voucher-watermark-demo">BON KAUCYJNY — TRYB DEMO (Dokument niefiskalny)</span>
@@ -129,6 +143,7 @@
                 <code>BON-DEMO-EXP-0001</code> do przetestowania w Kasie Sklepowej.
               </p>
             </section>
+            </div>
 
             <div class="session-history-box">
               <h3>Historia wrzutów bieżącej sesji</h3>
@@ -268,7 +283,10 @@
   <!-- Lokalne skrypty przełącznika widoków oraz obsługi butelkomatu (vanilla JS) -->
   <script src="/static/demo_state.js" defer></script>
   <script src="/static/app.js" defer></script>
+  <script src="/static/return_machine_art.js" defer></script>
   <script src="/static/return_machine_view.js" defer></script>
+  <script src="/static/return_machine_fx.js" defer></script>
+  <script src="/static/return_machine_drag.js" defer></script>
   <script src="/static/return_machine.js" defer></script>
   <script src="/static/checkout_contract.js" defer></script>
   <script src="/static/checkout_state.js" defer></script>

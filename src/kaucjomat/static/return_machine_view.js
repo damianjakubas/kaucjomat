@@ -4,7 +4,53 @@
  */
 
 const STATUS_CLASS_MAP = { ACCEPTED: "is-accepted", REDIRECT_TO_CASHIER: "is-redirected", REJECTED: "is-rejected" };
+const MACHINE_STATE_MAP = { ACCEPTED: "accepted", REDIRECT_TO_CASHIER: "redirected", REJECTED: "rejected" };
 const GROUP_LABEL_MAP = { valid: "Kaucja w automacie", glass: "Szkło do kasy", invalid: "Przypadek odrzucenia" };
+const LCD_EMPTY = "—";
+
+/**
+ * Ustawia stan maszyny (kontrolka i wlot) przez moduł efektów, o ile jest załadowany.
+ * @param {string} state - Jeden ze stanów `idle|scanning|accepted|redirected|rejected`.
+ * @returns {void}
+ */
+function applyMachineState(state) {
+  if (window.KaucjomatReturnFx) window.KaucjomatReturnFx.setMachineState(state);
+}
+
+/**
+ * Wpisuje wartość do wiersza LCD skanera o podanym identyfikatorze.
+ * @param {string} id - Identyfikator elementu `<dd>` wiersza.
+ * @param {string} value - Tekst do wyświetlenia.
+ * @returns {void}
+ */
+function setLcdValue(id, value) {
+  const node = document.getElementById(id);
+  if (node) node.textContent = value;
+}
+
+/**
+ * Składa wiersz czasu LCD: czas skanera z serwera oraz czas HTTP+DOM zmierzony przez klienta.
+ * @param {number} serverMs - Czas walidacji zmierzony przez backend.
+ * @param {number|null} roundTripMs - Czas HTTP+DOM po stronie klienta albo null, gdy go nie zmierzono (po F5).
+ * @returns {string} Napis w postaci `0.52 ms / 38.10 ms` z kreską zamiast brakującego pomiaru.
+ */
+function formatScannerTiming(serverMs, roundTripMs) {
+  const hasClient = roundTripMs !== null && roundTripMs !== undefined && Number.isFinite(Number(roundTripMs));
+  const client = hasClient ? `${Math.max(0.1, Number(roundTripMs)).toFixed(2)} ms` : LCD_EMPTY;
+  return `${Number(serverMs || 0).toFixed(2)} ms / ${client}`;
+}
+
+/**
+ * Formatuje znacznik czasu ISO 8601 jako godzinę lokalną `HH:MM:SS`.
+ * @param {string} isoValue - Zapis daty i czasu w formacie ISO 8601.
+ * @returns {string} Godzina w czasie lokalnym przeglądarki albo kreska przy błędnej dacie.
+ */
+function formatLocalTime(isoValue) {
+  const parsed = new Date(isoValue);
+  if (Number.isNaN(parsed.getTime())) return LCD_EMPTY;
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${pad(parsed.getHours())}:${pad(parsed.getMinutes())}:${pad(parsed.getSeconds())}`;
+}
 
 /**
  * Formatuje kwotę w groszach jako polski napis z dopiskiem zł (np. "0,50 zł").
@@ -33,9 +79,9 @@ function formatDecisionHeadline(decision) {
 }
 
 /**
- * Aktualizuje ekran decyzji skanera oraz wyświetla szczegóły parsowania re i czas odpowiedzi.
- * @param {object} decision - Decyzja walidacji z backendu FastAPI.
- * @param {number} roundTripMs - Zmierzone po stronie przeglądarki opóźnienie rundy HTTP w ms.
+ * Aktualizuje LCD skanera: status, opakowanie, EAN, ID egzemplarza oraz czasy skanera i HTTP+DOM.
+ * @param {object} decision - Decyzja walidacji z backendu FastAPI lub rekord próby z historii sesji.
+ * @param {number|null} roundTripMs - Zmierzone po stronie przeglądarki opóźnienie HTTP+DOM w ms (null po F5).
  * @returns {void}
  */
 function renderScannerDecision(decision, roundTripMs) {
@@ -51,11 +97,12 @@ function renderScannerDecision(decision, roundTripMs) {
 
   titleNode.textContent = formatDecisionHeadline(decision);
   msgNode.textContent = decision.message || "Zakończono walidację opakowania.";
-  const eanLabel = decision.ean || "brak poprawnego EAN";
-  const instanceLabel = decision.instance_id || "brak ID egzemplarza";
-  const serverMs = Number(decision.elapsed_ms || 0).toFixed(2);
-  const clientMs = Math.max(0.1, roundTripMs).toFixed(2);
-  metaNode.textContent = `EAN: ${eanLabel} | ID egzemplarza: ${instanceLabel} | Czas skanera: ${serverMs} ms (HTTP+DOM: ${clientMs} ms, limit < 200 ms)`;
+  setLcdValue("scanner-package-value", decision.title || LCD_EMPTY);
+  setLcdValue("scanner-ean-value", decision.ean || "brak poprawnego EAN");
+  setLcdValue("scanner-instance-value", decision.instance_id || "brak ID egzemplarza");
+  setLcdValue("scanner-timing-value", formatScannerTiming(decision.elapsed_ms, roundTripMs));
+  metaNode.textContent = "Czas: skaner / HTTP+DOM (limit HTTP+DOM < 200 ms). Wynik lokalny DEMO.";
+  applyMachineState(MACHINE_STATE_MAP[decision.status] || "idle");
 }
 
 /**
@@ -96,6 +143,9 @@ function resetScannerBoxView(
   titleNode.textContent = headline;
   msgNode.textContent = message;
   metaNode.textContent = meta;
+  ["scanner-package-value", "scanner-ean-value", "scanner-instance-value", "scanner-timing-value"]
+    .forEach((id) => setLcdValue(id, LCD_EMPTY));
+  applyMachineState("idle");
 }
 
 /**
@@ -162,23 +212,30 @@ function renderSessionState(session) {
     return;
   }
 
+  const fx = window.KaucjomatReturnFx;
   attempts.forEach((attempt) => {
     const item = document.createElement("li");
-    item.className = `attempt-item ${STATUS_CLASS_MAP[attempt.status] || ""}`.trim();
+    const isNew = fx && fx.isFreshAttempt(attempt.attempt_no);
+    item.className = `attempt-item ${STATUS_CLASS_MAP[attempt.status] || ""}${isNew ? " is-new" : ""}`.trim();
+    const time = document.createElement("time");
+    time.className = "attempt-time";
+    time.dateTime = attempt.timestamp_iso || "";
+    time.textContent = formatLocalTime(attempt.timestamp_iso);
     const header = document.createElement("strong");
     const prefix = `#${attempt.attempt_no} ${attempt.title}`;
     if (attempt.status === "ACCEPTED") header.textContent = `${prefix} — AKCEPTACJA (+${attempt.deposit_grosze} gr)`;
     else if (attempt.status === "REDIRECT_TO_CASHIER") header.textContent = `${prefix} — DO KASY (${attempt.cashier_suggested_grosze} gr)`;
     else header.textContent = `${prefix} — ODRZUCONO (${attempt.reason_code || "BŁĄD"})`;
     const details = document.createElement("div");
+    details.className = "attempt-message";
     details.textContent = attempt.message || "";
-    item.append(header, details);
+    item.append(time, header, details);
     listNode.appendChild(item);
   });
 }
 
 /**
- * Buduje pojedynczy element DOM karty opakowania na półkę testową z obsługą Drag & Drop.
+ * Buduje pojedynczy element DOM karty opakowania z ilustracją SVG na półkę testową.
  * @param {object} card - Metadane karty testowej z `/api/returns/cards`.
  * @param {(cardId: string) => void} onDeposit - Wywołanie zwrotne uruchamiane po kliknięciu przycisku „Wrzuć”.
  * @returns {HTMLElement} Gotowy element `<article>` karty opakowania.
@@ -186,14 +243,7 @@ function renderSessionState(session) {
 function buildPackageCardElement(card, onDeposit) {
   const article = document.createElement("article");
   article.className = `package-card package-card-group-${card.group || "valid"}`;
-  article.setAttribute("draggable", "true");
   article.dataset.cardId = card.card_id;
-  article.addEventListener("dragstart", (event) => {
-    if (event.dataTransfer) {
-      event.dataTransfer.setData("text/plain", card.card_id);
-      event.dataTransfer.effectAllowed = "copy";
-    }
-  });
 
   const head = document.createElement("div");
   head.className = "package-card-head";
@@ -219,7 +269,9 @@ function buildPackageCardElement(card, onDeposit) {
   button.textContent = "Wrzuć do automatu";
   button.addEventListener("click", () => { onDeposit(card.card_id); });
 
-  article.append(head, title, subtitle, code, button);
+  const artBuilder = window.KaucjomatReturnArt && window.KaucjomatReturnArt.buildPackageFigure;
+  const figure = artBuilder ? artBuilder(card) : document.createElement("figure");
+  article.append(head, figure, title, subtitle, code, button);
   return article;
 }
 

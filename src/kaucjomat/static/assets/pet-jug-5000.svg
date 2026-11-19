@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200" role="img" width="100" height="200">
+  <title>Baniak PET 5 l</title>
+  <rect x="34" y="10" width="26" height="14" rx="3" fill="#1f6f5b" stroke="#111c2d" stroke-width="2"/>
+  <path d="M36 24 H58 V40 C58 50 82 52 84 74 V176 Q84 192 68 192 H30 Q14 192 14 176 V74 C16 52 36 50 36 40 Z" fill="#dbe7ff" stroke="#111c2d" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M84 70 C98 70 98 108 84 108" fill="none" stroke="#111c2d" stroke-width="6" stroke-linecap="round"/>
+  <path d="M84 70 C98 70 98 108 84 108" fill="none" stroke="#dbe7ff" stroke-width="2" stroke-linecap="round"/>
+  <rect x="14" y="104" width="70" height="62" fill="#e7efe9" stroke="#111c2d" stroke-width="2"/>
+  <rect x="26" y="116" width="46" height="38" rx="2" fill="#ffffff" stroke="#111c2d" stroke-width="2"/>
+  <path d="M34 128 H64 M34 138 H64 M34 148 H52" stroke="#475569" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M20 80 V98" stroke="#ffffff" stroke-width="4" stroke-linecap="round" opacity="0.8"/>
+</svg>

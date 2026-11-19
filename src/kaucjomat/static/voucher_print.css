@@ -1,26 +1,6 @@
 /* Arkusz stylów karty bonu kaucyjnego DEMO oraz wydruku / zapisu do PDF (@media print) */
 .summary-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 
-.btn-issue-voucher {
-  appearance: none;
-  border: 1px solid var(--accent-strong);
-  background: var(--accent-primary);
-  color: #ffffff;
-  padding: 8px 14px;
-  border-radius: 8px;
-  font-weight: 700;
-  font-size: 0.88rem;
-  cursor: pointer;
-}
-.btn-issue-voucher:hover:not(:disabled) { background: var(--accent-strong); }
-.btn-issue-voucher:disabled {
-  background: #cbd8d0;
-  border-color: #b4c4ba;
-  color: #4b6154;
-  cursor: not-allowed;
-  opacity: 0.75;
-}
-
 .issued-voucher-card {
   padding: 16px;
   border-radius: 10px;

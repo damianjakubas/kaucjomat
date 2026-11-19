@@ -178,7 +178,7 @@ function renderSessionState(session) {
 }
 
 /**
- * Buduje pojedynczy element DOM karty opakowania na półkę testową z obsługą Drag & Drop.
+ * Buduje pojedynczy element DOM karty opakowania z ilustracją SVG na półkę testową.
  * @param {object} card - Metadane karty testowej z `/api/returns/cards`.
  * @param {(cardId: string) => void} onDeposit - Wywołanie zwrotne uruchamiane po kliknięciu przycisku „Wrzuć”.
  * @returns {HTMLElement} Gotowy element `<article>` karty opakowania.
@@ -219,7 +219,9 @@ function buildPackageCardElement(card, onDeposit) {
   button.textContent = "Wrzuć do automatu";
   button.addEventListener("click", () => { onDeposit(card.card_id); });
 
-  article.append(head, title, subtitle, code, button);
+  const artBuilder = window.KaucjomatReturnArt && window.KaucjomatReturnArt.buildPackageFigure;
+  const figure = artBuilder ? artBuilder(card) : document.createElement("figure");
+  article.append(head, figure, title, subtitle, code, button);
   return article;
 }
 

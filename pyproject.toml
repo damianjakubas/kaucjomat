@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "Interaktywny symulator polskiego systemu kaucyjnego (TRYB DEMO) z analizą wsadową i benchmarkiem GIL."
 readme = "README.md"
 authors = [
-    { name = "damianjakubas", email = "damianjakubas98@gmail.com" }
+    { name = "damianjakubas", email = "damianjakubas98@gmail.com" },
+    { name = "WKnapik1408" },
+    { name = "mjanas00" },
 ]
 requires-python = ">=3.13"
 dependencies = [
